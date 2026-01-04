@@ -301,7 +301,7 @@
         // ==========================================
         // KONFIGURASI PASSWORD
         // ==========================================
-        const PASSWORD_BUKU = "NomorAnggota"; // GANTI PASSWORD DI SINI
+        const PASSWORD_BUKU = "NomorAnggota"; // <--- GANTI PASSWORD ANDA DI SINI
         // ==========================================
 
         const state = {
@@ -327,17 +327,34 @@
             navNext: document.getElementById('nav-next')
         };
 
-        // --- DETECT IFRAME ---
+        // --- DETECT IFRAME (LOGIKA DIPERKUAT) ---
         window.addEventListener('DOMContentLoaded', () => {
-            if (window.self !== window.top) {
+            let isEmbedded = false;
+
+            try {
+                // Cek biasa
+                if (window.self !== window.top) {
+                    isEmbedded = true;
+                }
+            } catch (e) {
+                // Jika error (biasanya karena CORS/Sandbox), asumsikan ini Embed
+                isEmbedded = true;
+            }
+
+            if (isEmbedded) {
+                // Mode Embed: Hilangkan Header & Aktifkan Password
                 document.body.classList.add('is-embedded');
                 document.body.classList.add('locked');
                 els.lockOverlay.style.display = 'flex';
-                console.log("Mode Embed: Password Aktif");
+                console.log("Mode Embed: Password Aktif & Header Disembunyikan");
             } else {
+                // Mode Utama: Bebas Akses
+                document.body.classList.remove('is-embedded');
                 document.body.classList.remove('locked');
                 els.lockOverlay.style.display = 'none';
                 state.isUnlocked = true;
+                console.log("Mode Utama: Bebas Akses");
+                
                 const params = new URLSearchParams(window.location.search);
                 if (params.get('pdf')) loadPdfFromUrl(params.get('pdf'));
             }
@@ -363,10 +380,8 @@
         }
 
         // --- NAVIGATION (Click & Swipe) ---
-        
-        // 1. Klik Panah
         els.navPrev.addEventListener('click', (e) => {
-            e.stopPropagation(); // Biar tidak trigger klik layar
+            e.stopPropagation();
             flip('prev');
         });
         els.navNext.addEventListener('click', (e) => {
@@ -374,21 +389,14 @@
             flip('next');
         });
 
-        // 2. Klik Layar (Kiri = Prev, Kanan = Next)
         els.book.addEventListener('click', (e) => {
             if (!state.isUnlocked) return;
             const rect = els.book.getBoundingClientRect();
             const clickX = e.clientX - rect.left;
-            
-            // Jika klik di separuh kiri buku -> Prev, Kanan -> Next
-            if (clickX < rect.width / 2) {
-                flip('prev');
-            } else {
-                flip('next');
-            }
+            if (clickX < rect.width / 2) flip('prev');
+            else flip('next');
         });
 
-        // 3. Swipe (Touch Support)
         let touchStartX = 0;
         let touchEndX = 0;
 
@@ -403,15 +411,9 @@
         }, {passive: true});
 
         function handleSwipe() {
-            const threshold = 50; // Jarak minimal swipe
-            if (touchEndX < touchStartX - threshold) {
-                // Swipe Kiri -> Next
-                flip('next');
-            }
-            if (touchEndX > touchStartX + threshold) {
-                // Swipe Kanan -> Prev
-                flip('prev');
-            }
+            const threshold = 50;
+            if (touchEndX < touchStartX - threshold) flip('next');
+            if (touchEndX > touchStartX + threshold) flip('prev');
         }
 
         // --- PDF HANDLING ---
@@ -463,7 +465,6 @@
             for (let i = 1; i <= pdf.numPages; i++) {
                 els.loadingText.textContent = `Merender halaman ${i}/${pdf.numPages}...`;
                 const page = await pdf.getPage(i);
-                // Render dengan skala tinggi agar tajam
                 const viewport = page.getViewport({ scale: 1.8 });
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
@@ -529,18 +530,11 @@
         }
 
         function updateUI() {
-            // Update status panah
-            if (state.currentSheet === 0) {
-                els.navPrev.classList.add('disabled');
-            } else {
-                els.navPrev.classList.remove('disabled');
-            }
+            if (state.currentSheet === 0) els.navPrev.classList.add('disabled');
+            else els.navPrev.classList.remove('disabled');
 
-            if (state.currentSheet >= state.numSheets) {
-                els.navNext.classList.add('disabled');
-            } else {
-                els.navNext.classList.remove('disabled');
-            }
+            if (state.currentSheet >= state.numSheets) els.navNext.classList.add('disabled');
+            else els.navNext.classList.remove('disabled');
         }
 
         // --- EMBED ---
