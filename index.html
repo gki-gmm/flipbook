@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Flipbook Viewer</title>
+    <!-- Memuat PDF.js dari CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        // Set worker src untuk PDF.js
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    </script>
+    
+    <style>
+        :root {
+            --primary-color: #4a90e2;
+            --bg-color: #f0f2f5;
+            --book-bg: #ffffff;
+            --text-color: #333333;
+            --shadow-intensity: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --page-shadow: inset 0 0 30px rgba(0,0,0,0.1);
+            --control-height: 60px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* --- Header / Upload Section --- */
+        header {
+            background: white;
+            padding: 1rem 2rem;
+            box-shadow: var(--shadow-intensity);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 10;
+            height: 70px;
+        }
+
+        h1 {
+            font-size: 1.2rem;
+            color: var(--primary-color);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .upload-btn-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+        }
+
+        .btn {
+            border: 2px solid var(--primary-color);
+            color: var(--primary-color);
+            background-color: white;
+            padding: 8px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn:hover {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: #357abd;
+        }
+
+        .upload-btn-wrapper input[type=file] {
+            font-size: 100px;
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        /* --- Main Viewer Area --- */
+        main {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            padding: 2rem;
+            overflow: hidden;
+            perspective: 1500px; /* Penting untuk efek 3D */
+        }
+
+        /* Loading Overlay */
+        #loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255,255,255,0.9);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            display: none; /* Hidden by default */
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid var(--primary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 1rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* The Book Container */
+        .book {
+            position: relative;
+            width: 400px; /* Default width of single page */
+            height: 600px;
+            transform-style: preserve-3d;
+            transition: transform 0.5s ease;
+        }
+
+        /* Pages */
+        .page {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            background-color: var(--book-bg);
+            transform-origin: left center; /* Pivot point is on the left spine */
+            transition: transform 0.6s cubic-bezier(0.645, 0.045, 0.355, 1);
+            transform-style: preserve-3d;
+            box-shadow: var(--shadow-intensity);
+            border-radius: 0 5px 5px 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        /* Front and Back of a page */
+        .page-face {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden; /* Hide the back when flipped */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--book-bg);
+        }
+
+        .page-front {
+            z-index: 2;
+        }
+
+        .page-back {
+            transform: rotateY(180deg);
+            z-index: 1;
+            border-radius: 5px 0 0 5px; /* Radius changes when it's the back */
+            box-shadow: inset -10px 0 20px rgba(0,0,0,0.05); /* Spine shadow */
+        }
+
+        /* States for flipping */
+        .page.flipped {
+            transform: rotateY(-180deg);
+        }
+
+        /* Z-Index logic handled in JS for correct stacking */
+
+        /* Page Content Images */
+        .page-face img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: block;
+        }
+
+        .empty-state {
+            text-align: center;
+            color: #888;
+            padding: 2rem;
+        }
+        
+        .empty-state svg {
+            width: 64px;
+            height: 64px;
+            margin-bottom: 1rem;
+            fill: #ccc;
+        }
+
+        /* --- Footer / Controls --- */
+        footer {
+            height: var(--control-height);
+            background: white;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 1.5rem;
+            z-index: 10;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        input[type="number"] {
+            width: 50px;
+            padding: 5px;
+            text-align: center;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        .page-info {
+            font-size: 0.9rem;
+            color: #666;
+            min-width: 80px;
+            text-align: center;
+        }
+
+        /* Zoom controls */
+        .zoom-controls button {
+            background: none;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            width: 30px;
+            height: 30px;
+            cursor: pointer;
+            color: #555;
+        }
+        
+        .zoom-controls button:hover {
+            background-color: #f0f0f0;
+        }
+
+        /* Toast Notification */
+        #toast {
+            visibility: hidden;
+            min-width: 250px;
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            border-radius: 4px;
+            padding: 16px;
+            position: fixed;
+            z-index: 1000;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 14px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        #toast.show {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        /* Responsive */
+        @media (max-width: 600px) {
+            header {
+                padding: 0.5rem 1rem;
+            }
+            h1 span {
+                display: none; /* Hide text on very small screens */
+            }
+            h1::before {
+                content: "📖"; 
+                font-size: 1.5rem;
+            }
+            .book {
+                /* Scale down book on mobile */
+                transform: scale(0.6);
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>📖 <span>PDF Flipbook</span></h1>
+        <div class="upload-btn-wrapper">
+            <button class="btn btn-primary">📂 Upload PDF</button>
+            <input type="file" id="pdf-upload" accept="application/pdf" />
+        </div>
+    </header>
+
+    <main id="main-area">
+        <div class="empty-state" id="empty-state">
+            <svg viewBox="0 0 24 24">
+                <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M13,9V3.5L18.5,9H13Z" />
+            </svg>
+            <p>Silakan upload file PDF untuk mulai membaca.</p>
+            <p style="font-size: 0.8rem; margin-top:0.5rem;">File diproses di browser Anda.</p>
+        </div>
+
+        <div id="loading-overlay">
+            <div class="spinner"></div>
+            <p id="loading-text">Memproses PDF...</p>
+        </div>
+
+        <!-- Container buku 3D -->
+        <div class="book" id="book">
+            <!-- Halaman akan digenerate di sini oleh JS -->
+        </div>
+    </main>
+
+    <footer id="controls" style="visibility: hidden;">
+        <div class="control-group">
+            <button class="btn" id="prev-btn" title="Halaman Sebelumnya">❮</button>
+            <button class="btn" id="next-btn" title="Halaman Selanjutnya">❯</button>
+        </div>
+        
+        <div class="control-group">
+            <input type="number" id="page-input" value="1" min="1">
+            <span class="page-info">dari <span id="total-pages">0</span></span>
+        </div>
+
+        <div class="control-group zoom-controls">
+            <button id="zoom-out" title="Perkecil">-</button>
+            <button id="zoom-reset" title="Reset Zoom">R</button>
+            <button id="zoom-in" title="Perbesar">+</button>
+        </div>
+    </footer>
+
+    <div id="toast">Pesan notifikasi</div>
+
+    <script>
+        // --- State Management ---
+        const state = {
+            pdfDoc: null,
+            pages: [], // Menyimpan canvas data url
+            currentPage: 0, // 0-based index (halaman terbuka saat ini)
+            scale: 1.0,
+            bookWidth: 400,
+            bookHeight: 600,
+            isRendering: false
+        };
+
+        // --- DOM Elements ---
+        const els = {
+            upload: document.getElementById('pdf-upload'),
+            book: document.getElementById('book'),
+            emptyState: document.getElementById('empty-state'),
+            loading: document.getElementById('loading-overlay'),
+            loadingText: document.getElementById('loading-text'),
+            controls: document.getElementById('controls'),
+            prevBtn: document.getElementById('prev-btn'),
+            nextBtn: document.getElementById('next-btn'),
+            pageInput: document.getElementById('page-input'),
+            totalPages: document.getElementById('total-pages'),
+            toast: document.getElementById('toast'),
+            mainArea: document.getElementById('main-area'),
+            zoomIn: document.getElementById('zoom-in'),
+            zoomOut: document.getElementById('zoom-out'),
+            zoomReset: document.getElementById('zoom-reset')
+        };
+
+        // --- Event Listeners ---
+        els.upload.addEventListener('change', handleFileUpload);
+        els.prevBtn.addEventListener('click', () => turnPage('prev'));
+        els.nextBtn.addEventListener('click', () => turnPage('next'));
+        els.pageInput.addEventListener('change', () => goToPage(parseInt(els.pageInput.value) - 1));
+        
+        els.zoomIn.addEventListener('click', () => updateZoom(0.1));
+        els.zoomOut.addEventListener('click', () => updateZoom(-0.1));
+        els.zoomReset.addEventListener('click', () => updateZoom(0, true));
+
+        // Keyboard navigation
+        document.addEventListener('keydown', (e) => {
+            if (!state.pdfDoc) return;
+            if (e.key === 'ArrowLeft') turnPage('prev');
+            if (e.key === 'ArrowRight') turnPage('next');
+        });
+
+        // --- Functions ---
+
+        function showToast(message) {
+            els.toast.textContent = message;
+            els.toast.className = "show";
+            setTimeout(() => { els.toast.className = els.toast.className.replace("show", ""); }, 3000);
+        }
+
+        async function handleFileUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            if (file.type !== 'application/pdf') {
+                showToast("Mohon upload file PDF yang valid.");
+                return;
+            }
+
+            // Reset UI
+            els.emptyState.style.display = 'none';
+            els.book.innerHTML = '';
+            els.controls.style.visibility = 'hidden';
+            els.loading.style.display = 'flex';
+            state.pages = [];
+            state.currentPage = 0;
+            state.scale = 1.0;
+
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                const loadingTask = pdfjsLib.getDocument(arrayBuffer);
+                state.pdfDoc = await loadingTask.promise;
+                
+                els.totalPages.textContent = state.pdfDoc.numPages;
+                els.loadingText.textContent = `Merender halaman 0 / ${state.pdfDoc.numPages}`;
+
+                // Render all pages to images first
+                // Note: For huge PDFs, lazy loading is better, but for a simple flipbook, 
+                // pre-rendering ensures smooth 3D transitions.
+                for (let i = 1; i <= state.pdfDoc.numPages; i++) {
+                    const page = await state.pdfDoc.getPage(i);
+                    
+                    // Calculate scale to fit book dimensions
+                    const viewport = page.getViewport({ scale: 1.5 }); // Base quality
+                    
+                    const canvas = document.createElement('canvas');
+                    const context = canvas.getContext('2d');
+                    canvas.height = viewport.height;
+                    canvas.width = viewport.width;
+
+                    await page.render({
+                        canvasContext: context,
+                        viewport: viewport
+                    }).promise;
+
+                    // Convert to data URL
+                    const imgUrl = canvas.toDataURL();
+                    state.pages.push(imgUrl);
+                    
+                    els.loadingText.textContent = `Merender halaman ${i} / ${state.pdfDoc.numPages}`;
+                }
+
+                // Create DOM elements for flipbook
+                createBookStructure();
+                
+                // Show controls
+                els.controls.style.visibility = 'visible';
+                els.loading.style.display = 'none';
+                updateControls();
+
+            } catch (err) {
+                console.error(err);
+                els.loading.style.display = 'none';
+                els.emptyState.style.display = 'block';
+                showToast("Gagal memuat PDF. File mungkin rusak.");
+            }
+        }
+
+        function createBookStructure() {
+            // Kita membutuhkan struktur DOM di mana kita memiliki halaman yang bisa dibalik.
+            // Pendekatan "Simple Stack":
+            // Setiap elemen .page memiliki .front dan .back.
+            // Untuk PDF N halaman:
+            // Kita buat elemen untuk setiap halaman.
+            // Jika halaman ganjil: depan = konten halaman i, belakang = konten halaman i+1.
+            // Jika halaman genap: depan = kosong (cover style), belakang = kosong.
+            // Sebenarnya cara termudah untuk flipbook CSS murni adalah:
+            // Setiap "Sheet" kertas memiliki sisi depan dan belakang.
+            // Jadi untuk PDF 4 halaman: Sheet 1 (Front=1, Back=2), Sheet 2 (Front=3, Back=4).
+            
+            const numSheets = Math.ceil(state.pages.length / 2);
+            
+            els.book.innerHTML = ''; // Clear previous
+
+            for (let i = 0; i < numSheets; i++) {
+                const pageIndexFront = i * 2;
+                const pageIndexBack = i * 2 + 1;
+                
+                const sheet = document.createElement('div');
+                sheet.className = 'page';
+                sheet.id = `sheet-${i}`;
+                sheet.style.zIndex = numSheets - i; // Stack them correctly
+
+                // Bagian Depan
+                const frontFace = document.createElement('div');
+                frontFace.className = 'page-face page-front';
+                
+                if (pageIndexFront < state.pages.length) {
+                    const img = document.createElement('img');
+                    img.src = state.pages[pageIndexFront];
+                    img.draggable = false;
+                    frontFace.appendChild(img);
+                } else {
+                    frontFace.style.background = '#fff';
+                }
+
+                // Bagian Belakang
+                const backFace = document.createElement('div');
+                backFace.className = 'page-face page-back';
+
+                if (pageIndexBack < state.pages.length) {
+                    const img = document.createElement('img');
+                    img.src = state.pages[pageIndexBack];
+                    img.draggable = false;
+                    backFace.appendChild(img);
+                } else {
+                    backFace.style.background = '#fff';
+                }
+
+                sheet.appendChild(frontFace);
+                sheet.appendChild(backFace);
+                els.book.appendChild(sheet);
+            }
+        }
+
+        function turnPage(direction) {
+            if (state.isRendering) return;
+            const numSheets = Math.ceil(state.pages.length / 2);
+
+            if (direction === 'next') {
+                // Cek apakah masih ada sheet yang bisa dibalik
+                // state.currentPage di sini merepresentasikan index sheet yang sudah dibalik
+                if (state.currentPage < numSheets) {
+                    const sheet = document.getElementById(`sheet-${state.currentPage}`);
+                    if (sheet) {
+                        sheet.classList.add('flipped');
+                        state.currentPage++;
+                        updateControls();
+                        updateZIndex();
+                    }
+                }
+            } else if (direction === 'prev') {
+                if (state.currentPage > 0) {
+                    state.currentPage--;
+                    const sheet = document.getElementById(`sheet-${state.currentPage}`);
+                    if (sheet) {
+                        sheet.classList.remove('flipped');
+                        updateControls();
+                        updateZIndex();
+                    }
+                }
+            }
+        }
+
+        function goToPage(pageNum) {
+            // pageNum is 0-based page index, not sheet index
+            if (pageNum < 0) pageNum = 0;
+            if (pageNum >= state.pages.length) pageNum = state.pages.length - 1;
+
+            const targetSheet = Math.floor(pageNum / 2);
+            
+            // Logic simple: reset semua lalu flip sampai target
+            // (Untuk produksi skala besar, animasi batch lebih kompleks, tapi ini cukup untuk demo)
+            
+            const sheets = document.querySelectorAll('.page');
+            sheets.forEach(s => s.classList.remove('flipped'));
+            
+            state.currentPage = 0;
+            
+            // Animasi bertahap agar terlihat mulus (sedikit hacky tapi works)
+            const interval = setInterval(() => {
+                if (state.currentPage < targetSheet) {
+                    turnPage('next');
+                } else {
+                    clearInterval(interval);
+                }
+            }, 100); // Delay cepat antar flip
+        }
+
+        function updateZIndex() {
+            const numSheets = Math.ceil(state.pages.length / 2);
+            // Logic Z-Index
+            // Sheets yang belum dibalik (di kiri): Index makin tinggi makin depan
+            // Sheets yang sudah dibalik (di kanan): Index makin rendah makin depan
+            
+            for (let i = 0; i < numSheets; i++) {
+                const sheet = document.getElementById(`sheet-${i}`);
+                if (i < state.currentPage) {
+                    // Flipped (Right side)
+                    sheet.style.zIndex = i;
+                } else {
+                    // Not flipped (Left side)
+                    sheet.style.zIndex = numSheets - i;
+                }
+            }
+        }
+
+        function updateControls() {
+            // Update page input display
+            // Jika di sheet 0 (belum balik), kita lihat halaman 0 & 1
+            // Jika di sheet 1 (sudah balik 1), kita lihat halaman 2 & 3
+            
+            let visiblePageStart = state.currentPage * 2;
+            if (visiblePageStart >= state.pages.length) visiblePageStart = state.pages.length - 1;
+            
+            // Tampilkan halaman paling kiri yang terlihat
+            els.pageInput.value = visiblePageStart + 1;
+
+            // Disable buttons logic
+            els.prevBtn.disabled = state.currentPage === 0;
+            els.nextBtn.disabled = state.currentPage >= Math.ceil(state.pages.length / 2);
+            
+            els.prevBtn.style.opacity = els.prevBtn.disabled ? 0.5 : 1;
+            els.nextBtn.style.opacity = els.nextBtn.disabled ? 0.5 : 1;
+        }
+
+        function updateZoom(delta, reset = false) {
+            if (reset) {
+                state.scale = 1.0;
+            } else {
+                state.scale += delta;
+                if (state.scale < 0.5) state.scale = 0.5;
+                if (state.scale > 2.0) state.scale = 2.0;
+            }
+            
+            // Apply scale transform to the book container
+            els.book.style.transform = `scale(${state.scale})`;
+        }
+
+    </script>
+</body>
+</html>
