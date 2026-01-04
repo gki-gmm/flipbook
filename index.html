@@ -2,126 +2,117 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PDF Flipbook Realistis</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Advanced PDF Flipbook</title>
     
-    <!-- Memuat library Page Flip untuk animasi 3D -->
-    <script src="https://cdn.jsdelivr.net/npm/page-flip/dist/js/page-flip.browser.js"></script>
-    
-    <!-- Memuat library PDF.js untuk render PDF -->
+    <!-- Library Page Flip (Versi Stabil) -->
+    <script src="https://cdn.jsdelivr.net/npm/page-flip@2.0.7/dist/js/page-flip.browser.js"></script>
+    <!-- Library PDF.js (Versi Terbaru) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
     <style>
         :root {
-            --primary-color: #4a90e2;
-            --bg-color: #f0f2f5;
-            --text-color: #333;
-            --panel-bg: rgba(255, 255, 255, 0.9);
-            --shadow: 0 4px 15px rgba(0,0,0,0.1);
+            --primary: #2563eb;
+            --dark: #1e293b;
+            --light: #f8fafc;
+            --shadow-soft: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            --shadow-hard: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
         }
 
-        * {
-            box-sizing: border-box;
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        
+        body {
             margin: 0;
             padding: 0;
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-color);
+            font-family: 'Inter', system-ui, sans-serif;
+            background-color: #e2e8f0;
             height: 100vh;
+            width: 100vw;
             display: flex;
             flex-direction: column;
-            overflow: hidden; /* Mencegah scroll body utama agar hanya buku yang berinteraksi */
+            overflow: hidden;
         }
 
-        /* Header Controls */
-        header {
-            background: var(--panel-bg);
-            backdrop-filter: blur(10px);
+        /* UI Controls Bar */
+        .ui-bar {
+            background: white;
             padding: 10px 20px;
             display: flex;
+            align-items: center;
             justify-content: space-between;
-            align-items: center;
-            box-shadow: var(--shadow);
+            box-shadow: var(--shadow-soft);
             z-index: 100;
-            flex-wrap: wrap;
-            gap: 10px;
+            height: 60px;
         }
 
-        h1 {
-            font-size: 1.2rem;
-            color: var(--primary-color);
-            font-weight: 700;
-        }
-
-        .controls {
+        .logo {
+            font-weight: 800;
+            color: var(--dark);
+            font-size: 1.1rem;
             display: flex;
-            gap: 10px;
             align-items: center;
+            gap: 8px;
         }
 
-        input[type="text"] {
+        .input-group {
+            display: flex;
+            gap: 8px;
+            flex: 1;
+            max-width: 600px;
+            margin: 0 20px;
+        }
+
+        input.url-input {
+            flex: 1;
             padding: 8px 12px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            width: 200px;
+            border: 2px solid #cbd5e1;
+            border-radius: 6px;
             font-size: 0.9rem;
-            transition: width 0.3s;
-        }
-
-        input[type="text"]:focus {
-            width: 300px;
             outline: none;
-            border-color: var(--primary-color);
+            transition: border-color 0.2s;
         }
 
-        button {
-            background-color: var(--primary-color);
+        input.url-input:focus { border-color: var(--primary); }
+
+        button.btn-load {
+            background: var(--primary);
             color: white;
             border: none;
             padding: 8px 16px;
-            border-radius: 5px;
+            border-radius: 6px;
             cursor: pointer;
             font-weight: 600;
-            transition: background 0.2s, transform 0.1s;
+            white-space: nowrap;
         }
+        
+        button.btn-load:hover { background: #1d4ed8; }
 
-        button:hover {
-            background-color: #357abd;
-        }
-
-        button:active {
-            transform: scale(0.95);
-        }
-
-        button.secondary {
-            background-color: #6c757d;
-        }
-
-        /* Main Flipbook Container */
-        main {
+        /* Book Area */
+        .book-stage {
             flex: 1;
             display: flex;
             justify-content: center;
             align-items: center;
-            padding: 20px;
             position: relative;
             overflow: hidden;
+            perspective: 1500px; /* Penting untuk efek 3D */
+            background: radial-gradient(circle, #cbd5e1 1px, transparent 1px);
+            background-size: 20px 20px; /* Pola titik background */
         }
 
-        /* Container khusus untuk PageFlip */
+        /* Container Flipbook */
         .flip-book {
-            box-shadow: 0 0 20px rgba(0,0,0,0.2);
-            display: none; /* Disembunyikan sampai loading selesai */
+            display: none;
+            box-shadow: var(--shadow-hard);
+            border-radius: 2px 4px 4px 2px; /* Sedikit lengkung di kiri buku */
         }
 
-        /* Styling halaman individual */
+        /* Halaman */
         .page {
             background-color: white;
             overflow: hidden;
-            border: 1px solid #ddd; /* Garis tipis tepi kertas */
+            border: 1px solid #ccc; /* Tepi kertas */
+            backface-visibility: hidden; /* Optimasi performa */
         }
 
         .page-content {
@@ -132,294 +123,366 @@
             align-items: center;
         }
 
-        /* Canvas yang berisi halaman PDF */
-        canvas {
-            max-width: 100%;
-            max-height: 100%;
-            object-fit: contain;
-        }
-
-        /* Loading Overlay */
-        #loading-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
+        .page canvas {
             width: 100%;
             height: 100%;
-            background: rgba(255,255,255,0.9);
+            object-fit: contain;
+            display: block;
+        }
+
+        /* Loading & Status */
+        .status-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(255,255,255,0.95);
             display: flex;
             flex-direction: column;
-            justify-content: center;
             align-items: center;
-            z-index: 200;
+            justify-content: center;
+            z-index: 500;
+            transition: opacity 0.3s;
         }
 
-        .spinner {
-            width: 50px;
-            height: 50px;
-            border: 5px solid #f3f3f3;
-            border-top: 5px solid var(--primary-color);
+        .loader {
+            width: 48px;
+            height: 48px;
+            border: 5px solid #FFF;
+            border-bottom-color: var(--primary);
             border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin-bottom: 15px;
+            display: inline-block;
+            box-sizing: border-box;
+            animation: rotation 1s linear infinite;
+            margin-bottom: 16px;
         }
 
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+        @keyframes rotation { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        .progress-bar-container {
+            width: 300px;
+            height: 10px;
+            background: #e2e8f0;
+            border-radius: 5px;
+            overflow: hidden;
+            margin-top: 10px;
         }
 
-        /* Toast Notification */
-        .toast {
-            position: fixed;
+        .progress-bar {
+            height: 100%;
+            background: var(--primary);
+            width: 0%;
+            transition: width 0.3s;
+        }
+
+        /* Mobile Controls (Floating) */
+        .mobile-controls {
+            position: absolute;
             bottom: 20px;
             left: 50%;
             transform: translateX(-50%);
-            background-color: #333;
-            color: white;
+            background: rgba(30, 41, 59, 0.9);
             padding: 10px 20px;
-            border-radius: 5px;
-            opacity: 0;
-            transition: opacity 0.3s;
-            pointer-events: none;
-            z-index: 1000;
+            border-radius: 30px;
+            display: none; /* Tampil hanya di mobile */
+            gap: 20px;
+            z-index: 200;
+            box-shadow: var(--shadow-hard);
+        }
+        
+        .mob-btn {
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            user-select: none;
         }
 
-        .toast.show {
-            opacity: 1;
+        .page-counter {
+            color: white;
+            font-size: 14px;
+            font-family: monospace;
+            align-self: center;
         }
 
-        /* Responsiveness */
         @media (max-width: 768px) {
-            header {
-                flex-direction: column;
-                align-items: stretch;
-            }
-            input[type="text"] {
-                width: 100%;
-            }
-            input[type="text"]:focus {
-                width: 100%;
-            }
-            .controls {
-                justify-content: space-between;
-                margin-top: 10px;
-            }
-            main {
-                padding: 10px;
-            }
+            .ui-bar { height: auto; flex-direction: column; padding: 15px; gap: 10px; }
+            .input-group { width: 100%; margin: 0; max-width: none; }
+            .mobile-controls { display: flex; }
+            .book-stage { padding: 20px 0; }
         }
     </style>
 </head>
 <body>
 
-    <header>
-        <h1>📖 PDF Flipbook Viewer</h1>
-        <div class="controls">
-            <input type="text" id="pdf-url-input" placeholder="Tempel URL PDF (GitHub Raw)" value="">
-            <button onclick="loadPdfFromInput()">Buka</button>
-            <button class="secondary" onclick="document.getElementById('pdf-url-input').value = ''">Reset</button>
+    <!-- UI Atas -->
+    <div class="ui-bar">
+        <div class="logo">📚 PDF FlipPro</div>
+        <div class="input-group">
+            <input type="text" id="pdf-url" class="url-input" placeholder="Tempel URL PDF GitHub / Raw di sini...">
+            <button class="btn-load" onclick="handleLoad()">Render PDF</button>
         </div>
-    </header>
+        <div style="font-size: 0.8rem; color: #64748b; display: none;" id="desktop-hint">Klik pinggir halaman untuk membalik</div>
+    </div>
 
-    <main id="book-container">
-        <!-- Elemen Loading -->
-        <div id="loading-overlay">
-            <div class="spinner"></div>
-            <p id="loading-text">Memuat Flipbook...</p>
+    <!-- Area Buku -->
+    <div class="book-stage" id="stage">
+        
+        <!-- Status Loading -->
+        <div class="status-overlay" id="loading-screen">
+            <span class="loader"></span>
+            <h3 id="status-text" style="margin-bottom: 5px;">Menyiapkan Engine...</h3>
+            <div class="progress-bar-container">
+                <div class="progress-bar" id="progress-bar"></div>
+            </div>
         </div>
 
-        <!-- Wadah Buku -->
-        <div class="flip-book" id="flipbook"></div>
-    </main>
+        <!-- Flipbook Element -->
+        <div class="flip-book" id="book"></div>
 
-    <!-- Notifikasi Toast -->
-    <div id="toast" class="toast">Pesan notifikasi</div>
+        <!-- Kontrol Mobile -->
+        <div class="mobile-controls">
+            <div class="mob-btn" onclick="flipPrev()">❮</div>
+            <div class="page-counter" id="page-num">0 / 0</div>
+            <div class="mob-btn" onclick="flipNext()">❯</div>
+        </div>
+    </div>
 
-    <script>
-        // Setup Worker untuk PDF.js
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+<script>
+    // --- KONFIGURASI UTAMA ---
+    // Proxy ini sangat penting agar PDF dari GitHub bisa dibaca tanpa error CORS
+    const PROXY_URL = 'https://corsproxy.io/?';
+    
+    // PDF Contoh Default (Mozilla PDF.js sample)
+    const DEFAULT_URL = "https://raw.githubusercontent.com/gki-gmm/flipbook/refs/heads/main/WARTA JEMAAT GKI GMM EDISI 16 Tahun ke-22 (04-01-2026).pdf";
+    
+    // State Global
+    let pageFlip = null;
+    let pdfDoc = null;
+    const bookEl = document.getElementById('book');
+    const loadingScreen = document.getElementById('loading-screen');
+    const progressBar = document.getElementById('progress-bar');
+    const statusText = document.getElementById('status-text');
+    const pageNumEl = document.getElementById('page-num');
 
-        // State global
-        let pageFlip = null;
-        let pdfDoc = null;
-        const bookContainer = document.getElementById('flipbook');
-        const loadingOverlay = document.getElementById('loading-overlay');
-        const loadingText = document.getElementById('loading-text');
-        const urlInput = document.getElementById('pdf-url-input');
+    // Inisialisasi PDF.js Worker
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-        // Contoh PDF (Kosongkan jika ingin user memasukkan sendiri)
-        // Menggunakan PDF contoh umum untuk demo. Ganti ini dengan URL GitHub Raw Anda.
-        const DEFAULT_PDF = "WARTA JEMAAT GKI GMM EDISI 16 Tahun ke-22 (04-01-2026).pdf";
+    // Saat halaman dimuat
+    window.onload = () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const userUrl = urlParams.get('url');
+        const finalUrl = userUrl ? decodeURIComponent(userUrl) : DEFAULT_URL;
+        
+        document.getElementById('pdf-url').value = finalUrl;
+        loadBook(finalUrl);
+    };
 
-        // Inisialisasi awal
-        window.addEventListener('DOMContentLoaded', () => {
-            // Cek apakah ada parameter URL di link (opsional untuk advanced usage)
-            const urlParams = new URLSearchParams(window.location.search);
-            const pdfUrl = urlParams.get('url') || DEFAULT_PDF;
+    function handleLoad() {
+        const url = document.getElementById('pdf-url').value.trim();
+        if(!url) return alert("URL tidak boleh kosong");
+        if (pageFlip) pageFlip.destroy();
+        bookEl.innerHTML = ''; // Bersihkan DOM
+        loadBook(url);
+    }
+
+    // --- CORE LOGIC: MEMUAT BUKU ---
+    async function loadBook(url) {
+        showLoading(true, "Mengunduh PDF...");
+        progressBar.style.width = '0%';
+
+        try {
+            // 1. Gunakan Proxy untuk menghindari CORS
+            const proxyUrl = PROXY_URL + encodeURIComponent(url);
             
-            urlInput.value = pdfUrl;
-            initBook(pdfUrl);
-        });
+            const loadingTask = pdfjsLib.getDocument({
+                url: proxyUrl,
+                cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/',
+                cMapPacked: true
+            });
 
-        // Fungsi untuk menangani tombol "Buka"
-        function loadPdfFromInput() {
-            const url = urlInput.value.trim();
-            if (!url) {
-                showToast("Mohon masukkan URL PDF yang valid");
-                return;
-            }
-            // Hapus buku lama jika ada
-            if (pageFlip) {
-                pageFlip.destroy();
-                bookContainer.innerHTML = '';
-            }
-            initBook(url);
-        }
-
-        // Fungsi Utama: Inisialisasi Buku
-        async function initBook(url) {
-            showLoading(true, "Mengunduh PDF...");
+            pdfDoc = await loadingTask.promise;
             
-            try {
-                // 1. Load Dokumen PDF
-                const loadingTask = pdfjsLib.getDocument(url);
-                pdfDoc = await loadingTask.promise;
-                
-                showLoading(true, `Merender ${pdfDoc.numPages} halaman...`);
+            const numPages = pdfDoc.numPages;
+            updateStatus(`Membuat ${numPages} halaman...`);
 
-                // 2. Tentukan Ukuran Buku (Responsive)
-                // Kita ambi ukuran dari layar untuk menentukan skala buku yang pas
-                const maxWidth = window.innerWidth > 768 ? window.innerWidth * 0.8 : window.innerWidth - 30;
-                const maxHeight = window.innerHeight - 150;
-                
-                // Render halaman pertama untuk mendapatkan rasio aspek
-                const firstPage = await pdfDoc.getPage(1);
-                const viewport = firstPage.getViewport({ scale: 1 });
-                const aspectRatio = viewport.width / viewport.height;
+            // 2. Render Halaman Satu per Satu (Async Loop) agar UI tidak macet
+            const pages = [];
+            let renderedCount = 0;
 
-                // Hitung dimensi buku
-                let bookWidth = maxWidth;
-                let bookHeight = bookWidth / aspectRatio;
+            for (let i = 1; i <= numPages; i++) {
+                const pageDiv = createPageDiv(i);
+                bookEl.appendChild(pageDiv);
+                pages.push(pageDiv);
 
-                // Jika tingginya melebihi layar, sesuaikan berdasarkan tinggi
-                if (bookHeight > maxHeight) {
-                    bookHeight = maxHeight;
-                    bookWidth = bookHeight * aspectRatio;
-                }
-
-                // 3. Render setiap halaman PDF menjadi Canvas
-                const pages = [];
-                for (let i = 1; i <= pdfDoc.numPages; i++) {
-                    const pageDiv = document.createElement('div');
-                    pageDiv.className = 'page';
-                    
-                    // Wrapper konten halaman
-                    const contentDiv = document.createElement('div');
-                    contentDiv.className = 'page-content';
-                    
-                    const canvas = document.createElement('canvas');
-                    contentDiv.appendChild(canvas);
-                    pageDiv.appendChild(contentDiv);
-                    bookContainer.appendChild(pageDiv);
-                    
-                    // Render PDF ke Canvas
-                    await renderPageToCanvas(i, canvas);
-                    
-                    pages.push(pageDiv);
-                }
-
-                showLoading(true, "Membuat Efek 3D...");
-
-                // 4. Inisialisasi PageFlip Library
-                pageFlip = new St.PageFlip(bookContainer, {
-                    width: bookWidth, // Lebar satu halaman
-                    height: bookHeight, // Tinggi satu halaman
-                    size: "stretch",
-                    minWidth: 300,
-                    maxWidth: 1000,
-                    minHeight: 400,
-                    maxHeight: 1200,
-                    maxShadowOpacity: 0.5, // Realisme bayangan
-                    showCover: true,
-                    mobileScrollSupport: false // Matikan scroll browser saat di buku
+                // Render di background
+                renderPdfPageToDiv(i, pageDiv).then(() => {
+                    renderedCount++;
+                    const percent = (renderedCount / numPages) * 100;
+                    progressBar.style.width = percent + '%';
                 });
-
-                // Memuat halaman DOM ke dalam engine PageFlip
-                pageFlip.loadFromHTML(pages);
-
-                // Event Listener untuk mengatur layout responsive
-                pageFlip.on('flipState', (e) => {
-                    // Bisa ditambahkan logika analitik di sini
-                });
-
-                showLoading(false);
-
-            } catch (error) {
-                console.error(error);
-                showLoading(false);
-                let msg = "Gagal memuat PDF.";
-                if (error.name === 'UnexpectedResponseException') {
-                    msg = "Error CORS: Pastikan URL adalah 'raw.githubusercontent.com'.";
-                } else if (error.message.includes('Invalid PDF')) {
-                    msg = "File bukan PDF yang valid.";
-                }
-                showToast(msg);
-                alert(msg); // Fallback untuk jelas
+                
+                // Jeda kecil agar browser bisa bernafas (UI responsif)
+                await new Promise(r => setTimeout(r, 10)); 
             }
+
+            // 3. Inisialisasi PageFlip setelah DOM siap
+            initPageFlip(pages);
+
+        } catch (error) {
+            console.error(error);
+            showLoading(false);
+            alert("Gagal memuat PDF. Pastikan URL valid.\nError: " + error.message);
         }
+    }
 
-        // Helper: Render satu halaman ke canvas
-        async function renderPageToCanvas(pageNum, canvas) {
-            const page = await pdfDoc.getPage(pageNum);
-            
-            // Skala kualitas tinggi (2x agar tajam di retina)
-            const scale = 1.5; 
-            const viewport = page.getViewport({ scale: scale });
+    function createPageDiv(pageNum) {
+        const div = document.createElement('div');
+        div.className = 'page';
+        
+        const content = document.createElement('div');
+        content.className = 'page-content';
+        
+        // Canvas untuk PDF
+        const canvas = document.createElement('canvas');
+        content.appendChild(canvas);
+        div.appendChild(content);
+        
+        return div;
+    }
 
-            const context = canvas.getContext('2d');
-            canvas.height = viewport.height;
-            canvas.width = viewport.width;
+    async function renderPdfPageToDiv(pageNum, div) {
+        const page = await pdfDoc.getPage(pageNum);
+        const canvas = div.querySelector('canvas');
+        const context = canvas.getContext('2d');
+        
+        // Kualitas Render Tinggi (Scale 2.0 untuk Retina/High Res)
+        const viewport = page.getViewport({ scale: 2.0 });
+        
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        
+        const renderContext = {
+            canvasContext: context,
+            viewport: viewport
+        };
+        
+        await page.render(renderContext).promise;
+    }
 
-            const renderContext = {
-                canvasContext: context,
-                viewport: viewport
-            };
-            
-            await page.render(renderContext).promise;
-        }
+    function initPageFlip(pages) {
+        updateStatus("Memuat Efek 3D...");
+        
+        // Deteksi orientasi PDF dari halaman pertama
+        pdfDoc.getPage(1).then(page => {
+            const viewport = page.getViewport({ scale: 1 });
+            const isLandscape = viewport.width > viewport.height;
 
-        // Helper: UI Loading
-        function showLoading(show, text = "") {
-            loadingOverlay.style.display = show ? 'flex' : 'none';
-            if(text) loadingText.innerText = text;
-        }
+            // Hitung ukuran optimal berdasarkan layar
+            const containerW = window.innerWidth;
+            const containerH = window.innerHeight - 80; // Kurangi header
 
-        // Helper: Toast Message
-        function showToast(message) {
-            const toast = document.getElementById('toast');
-            toast.innerText = message;
-            toast.classList.add('show');
-            setTimeout(() => {
-                toast.classList.remove('show');
-            }, 3000);
-        }
+            // Logika Ukuran Responsif Cerdas
+            let bookW, bookH;
 
-        // Handle Window Resize (Responsive Logic)
-        let resizeTimeout;
-        window.addEventListener('resize', () => {
-            clearTimeout(resizeTimeout);
-            resizeTimeout = setTimeout(() => {
-                if (pageFlip && pdfDoc) {
-                    // Perbarui dimensi buku saat ukuran layar berubah drastis
-                    // Ini memicu ulang kalkulasi ukuran di pageFlip jika diperlukan
-                    // Namun, library 'page-flip' dengan size: "stretch" biasanya menangani CSS dengan baik.
-                    // Kita hanya perlu memastikan CSS container parent-nya fleksibel.
-                    pageFlip.updateState(); 
+            if (window.innerWidth < 768) {
+                // MOBILE: Single Page Mode
+                bookW = containerW * 0.95; 
+                bookH = containerW * 0.95 * (viewport.height / viewport.width);
+                // Jika tingginya kepanjangan, batasi tinggi
+                if(bookH > containerH * 0.9) {
+                    bookH = containerH * 0.9;
+                    bookW = bookH * (viewport.width / viewport.height);
                 }
-            }, 300);
-        });
+            } else {
+                // DESKTOP: Double Page Mode
+                // Kita ingin 2 halaman muat di layar dengan margin
+                const targetWidth = (containerW * 0.8) / 2; // 80% lebar layar dibagi 2
+                const targetHeight = containerH * 0.8;
+                
+                // Hitung berapa lebar satu halaman jika mengikuti tinggi target
+                const calcWidth = targetHeight * (viewport.width / viewport.height);
 
-    </script>
+                // Ambil yang lebih kecil agar muat (fit inside)
+                const singlePageW = Math.min(targetWidth, calcWidth);
+                
+                bookW = singlePageW; 
+                bookH = singlePageW * (viewport.height / viewport.width);
+            }
+
+            // Buat Instance PageFlip
+            pageFlip = new St.PageFlip(bookEl, {
+                width: bookW, // Lebar SATU halaman
+                height: bookH, // Tinggi SATU halaman
+                size: 'stretch',
+                minWidth: 300,
+                maxWidth: 1200,
+                minHeight: 400,
+                maxHeight: 1400,
+                
+                // Pengaturan Realisme
+                maxShadowOpacity: 0.5,
+                showCover: true,
+                mobileScrollSupport: false, // Biar user bisa scroll HP keluar buku
+                usePortrait: true, // Paksa portrait di mobile
+                startPage: 0,
+                drawShadow: true, // Render shadow manual di canvas
+                flippingTime: 800, // Kecepatan balik
+                useMouseEvents: true,
+                swipeDistance: 30,
+                clickEventForward: true,
+                disableFlipByClick: false // Klik area halaman balik halaman
+            });
+
+            pageFlip.loadFromHTML(pages);
+
+            // Event Listeners
+            pageFlip.on('flip', (e) => {
+                updatePageCounter(e.data + 1);
+            });
+
+            // Selesai loading
+            showLoading(false);
+        });
+    }
+
+    // --- HELPER FUNCTIONS ---
+
+    function showLoading(show, text = "") {
+        if (show) {
+            loadingScreen.style.display = 'flex';
+            statusText.innerText = text;
+        } else {
+            loadingScreen.style.opacity = '0';
+            setTimeout(() => { loadingScreen.style.display = 'none'; }, 300);
+            bookEl.style.display = 'block';
+            document.getElementById('desktop-hint').style.display = 'block';
+        }
+    }
+
+    function updateStatus(text) {
+        statusText.innerText = text;
+    }
+
+    function updatePageCounter(current) {
+        if(!pdfDoc) return;
+        // Format: "1 - 2" untuk desktop, "1" untuk mobile
+        // Kita tampilkan total halaman PDF saja untuk simplisitas
+        pageNumEl.innerText = `${current} / ${pdfDoc.numPages}`;
+    }
+
+    // Kontrol Navigasi
+    function flipNext() {
+        if (pageFlip) pageFlip.flipNext();
+    }
+
+    function flipPrev() {
+        if (pageFlip) pageFlip.flipPrev();
+    }
+
+    // Keyboard controls
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowRight') flipNext();
+        if (e.key === 'ArrowLeft') flipPrev();
+    });
+
+</script>
 </body>
 </html>
