@@ -2,7 +2,7 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Secure PDF Flipbook</title>
     <!-- Memuat PDF.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -15,23 +15,21 @@
             --primary-color: #2c3e50;
             --accent-color: #3498db;
             --bg-color: #e0e5ec;
-            --book-width: 450px;
-            --book-height: 640px;
-            --anim-speed: 0.8s;
+            --anim-speed: 0.6s;
+            --arrow-size: 50px;
         }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; }
+        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background-color: var(--bg-color);
             height: 100vh;
+            width: 100vw;
             display: flex;
             flex-direction: column;
-            overflow: hidden;
+            overflow: hidden; /* Mencegah scroll */
             color: #333;
-            filter: blur(0px); 
-            transition: filter 0.5s;
         }
 
         /* --- HEADER (Menu Atas) --- */
@@ -47,10 +45,8 @@
             flex-shrink: 0;
         }
 
-        /* --- PENTING: Sembunyikan Header saat di Embed --- */
-        body.is-embedded header {
-            display: none;
-        }
+        /* Sembunyikan Header saat di Embed */
+        body.is-embedded header { display: none; }
 
         .brand { font-weight: bold; font-size: 1.2rem; color: var(--primary-color); }
         .btn {
@@ -58,9 +54,7 @@
             font-size: 0.9rem; color: white; margin-left: 5px;
         }
         .btn-upload { background: var(--accent-color); }
-        .btn-upload:hover { background: #2980b9; }
         .btn-embed { background: var(--primary-color); }
-        .btn-embed:hover { background: #1a252f; }
         input[type="file"] { display: none; }
 
         /* --- MAIN CONTENT --- */
@@ -72,8 +66,7 @@
             position: relative;
             perspective: 2000px;
             overflow: hidden;
-            /* Saat embed, padding diatur ulang agar full screen jika perlu */
-            padding: 20px;
+            width: 100%;
         }
 
         /* Loading Screen */
@@ -88,48 +81,115 @@
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-        /* Empty State */
-        .empty-msg { text-align: center; color: #7f8c8d; max-width: 400px; }
+        .empty-msg { text-align: center; color: #7f8c8d; padding: 20px; }
 
-        /* --- BOOK 3D --- */
+        /* --- RESPONSIVE BOOK 3D --- */
+        .book-container {
+            width: 100%;
+            max-width: 450px;
+            height: 100%;
+            max-height: 85vh;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
         .book {
-            position: relative; width: var(--book-width); height: var(--book-height);
-            transform-style: preserve-3d; transition: transform 0.5s ease;
+            position: relative;
+            width: 100%;
+            height: 100%;
+            transform-style: preserve-3d;
+            /* Rasio A4 kira-kira 1 : 1.414, kita pakai aspect ratio agar tidak kepotong */
+            aspect-ratio: 1 / 1.414; 
         }
 
         .page {
-            position: absolute; width: 100%; height: 100%; top: 0; left: 0;
-            transform-origin: left center; transform-style: preserve-3d;
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            transform-origin: left center; /* Putar di tulang buku kiri */
+            transform-style: preserve-3d;
             transition: transform var(--anim-speed) cubic-bezier(0.645, 0.045, 0.355, 1);
-            border-radius: 0 4px 4px 0; cursor: pointer; box-shadow: 0 0 5px rgba(0,0,0,0.1);
+            cursor: pointer;
+            /* Shadow halus untuk efek realistis */
+            box-shadow: inset 5px 0 10px rgba(0,0,0,0.05); 
         }
 
         .front, .back {
-            position: absolute; width: 100%; height: 100%;
-            backface-visibility: hidden; background-color: white; overflow: hidden;
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            background-color: white;
+            overflow: hidden;
         }
-        .front { z-index: 2; background: linear-gradient(to right, rgba(0,0,0,0.05) 0%, rgba(255,255,255,0) 10%); }
+
+        /* Sisi Depan */
+        .front { 
+            z-index: 2; 
+            border-radius: 0 4px 4px 0; /* Sudut kanan melengkung */
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+        }
+
+        /* Sisi Belakang */
         .back {
-            transform: rotateY(180deg); z-index: 1; border-radius: 4px 0 0 4px;
-            background: linear-gradient(to left, rgba(0,0,0,0.05) 0%, rgba(255,255,255,0) 10%);
+            transform: rotateY(180deg);
+            z-index: 1;
+            border-radius: 4px 0 0 4px; /* Sudut kiri melengkung saat dibalik */
+            box-shadow: inset -2px 0 5px rgba(0,0,0,0.05);
+            background: #fdfdfd;
         }
-        .page img { width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
+
+        .page img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain; /* Gambar pas di dalam kotak */
+            pointer-events: none; /* Biarkan klik tembus ke div page */
+        }
+
         .page.flipped { transform: rotateY(-180deg); }
 
-        /* --- FOOTER --- */
-        footer {
-            height: 60px; background: white; border-top: 1px solid #ddd;
-            display: flex; justify-content: center; align-items: center; gap: 20px; z-index: 50;
-            flex-shrink: 0;
+        /* --- NAVIGATION ARROWS (PANAH) --- */
+        .nav-arrow {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: var(--arrow-size);
+            height: var(--arrow-size);
+            background: rgba(255, 255, 255, 0.7);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            z-index: 100;
+            font-size: 24px;
+            color: var(--primary-color);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: all 0.2s;
+            user-select: none;
         }
-        .nav-btn {
-            background: none; border: 1px solid #ccc; padding: 8px 16px; border-radius: 4px;
-            cursor: pointer; font-weight: bold; color: #555;
-        }
-        .nav-btn:hover { background: #f9f9f9; color: var(--accent-color); border-color: var(--accent-color); }
-        .nav-btn:disabled { opacity: 0.3; cursor: not-allowed; }
 
-        /* --- PASSWORD LOCK SCREEN --- */
+        .nav-arrow:hover {
+            background: rgba(255, 255, 255, 1);
+            transform: translateY(-50%) scale(1.1);
+        }
+
+        .nav-arrow:active { transform: translateY(-50%) scale(0.95); }
+
+        .nav-prev { left: 10px; }
+        .nav-next { right: 10px; }
+        
+        /* Disabled state for arrows */
+        .nav-arrow.disabled {
+            opacity: 0.2;
+            pointer-events: none;
+        }
+
+        /* --- PASSWORD LOCK --- */
         #lock-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(44, 62, 80, 0.98); z-index: 9999;
@@ -139,32 +199,31 @@
         }
 
         .lock-box {
-            background: white; padding: 40px; border-radius: 10px; text-align: center;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.5); width: 300px;
+            background: white; padding: 30px; border-radius: 12px; text-align: center;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5); width: 85%; max-width: 300px;
         }
         
-        .lock-icon { font-size: 3rem; margin-bottom: 20px; display: block; }
-
-        .lock-box h2 { margin-bottom: 10px; color: #333; }
+        .lock-icon { font-size: 3rem; margin-bottom: 15px; display: block; }
+        .lock-box h2 { margin-bottom: 10px; color: #333; font-size: 1.2rem; }
         .lock-box p { margin-bottom: 20px; color: #666; font-size: 0.9rem; }
         
         #pass-input {
-            width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid #ccc;
-            border-radius: 5px; font-size: 1rem; text-align: center;
+            width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #ccc;
+            border-radius: 6px; font-size: 1rem; text-align: center;
         }
         
         #unlock-btn {
-            width: 100%; padding: 10px; background: var(--accent-color); color: white;
-            border: none; border-radius: 5px; font-size: 1rem; cursor: pointer;
+            width: 100%; padding: 12px; background: var(--accent-color); color: white;
+            border: none; border-radius: 6px; font-size: 1rem; cursor: pointer; font-weight: bold;
         }
         #unlock-btn:hover { background: #2980b9; }
         
-        #error-msg { color: #e74c3c; font-size: 0.8rem; margin-top: 10px; height: 1rem; }
+        #error-msg { color: #e74c3c; font-size: 0.85rem; margin-top: 10px; min-height: 1.2rem; }
 
-        /* --- EMBED MODAL --- */
+        /* --- MODAL --- */
         .modal {
             display: none; position: fixed; z-index: 10000; left: 0; top: 0;
-            width: 100%; height: 100%; background-color: rgba(0,0,0,0.5);
+            width: 100%; height: 100%; background-color: rgba(0,0,0,0.6);
             justify-content: center; align-items: center;
         }
         .modal-content {
@@ -172,12 +231,10 @@
             width: 90%; max-width: 500px; position: relative;
         }
         .close { position: absolute; right: 20px; top: 10px; font-size: 24px; cursor: pointer; }
-        textarea { width: 100%; height: 80px; margin-top: 10px; padding: 10px; }
+        textarea { width: 100%; height: 80px; margin-top: 10px; padding: 10px; font-family: monospace; }
 
         /* Blur effect when locked */
-        body.locked main { filter: blur(10px); pointer-events: none; }
-        body.locked footer { filter: blur(5px); pointer-events: none; }
-        body.locked header { filter: blur(2px); pointer-events: none; }
+        body.locked main, body.locked header, body.locked .nav-arrow { filter: blur(8px); pointer-events: none; }
 
     </style>
 </head>
@@ -186,15 +243,15 @@
     <div id="lock-overlay">
         <div class="lock-box">
             <span class="lock-icon">🔒</span>
-            <h2>Konten Terkunci</h2>
-            <p>Silakan masukkan password untuk membaca dokumen ini.</p>
+            <h2>Dokumen Terkunci</h2>
+            <p>Masukkan password untuk membaca.</p>
             <input type="password" id="pass-input" placeholder="Password..." onkeydown="if(event.key==='Enter') verifyPassword()">
-            <button id="unlock-btn" onclick="verifyPassword()">BUKA</button>
+            <button id="unlock-btn" onclick="verifyPassword()">BUKA DOKUMEN</button>
             <div id="error-msg"></div>
         </div>
     </div>
 
-    <!-- Header (Menu Atas - Akan hilang saat Embed) -->
+    <!-- Header (Menu Atas) -->
     <header>
         <div class="brand">📖 Flipbook Viewer</div>
         <div>
@@ -217,23 +274,24 @@
             <p>Upload file PDF atau gunakan parameter URL.</p>
         </div>
 
-        <div class="book" id="book">
-            <!-- Halaman generate JS -->
+        <!-- Panah Navigasi -->
+        <div id="nav-prev" class="nav-arrow nav-prev disabled">❮</div>
+        <div id="nav-next" class="nav-arrow nav-next disabled">❯</div>
+
+        <!-- Container Buku -->
+        <div class="book-container">
+            <div class="book" id="book">
+                <!-- Halaman generate JS -->
+            </div>
         </div>
     </main>
-
-    <footer>
-        <button class="nav-btn" id="prevBtn" disabled>❮ Sebelumnya</button>
-        <span id="page-info">Halaman <span id="cur-page">0</span> / <span id="tot-page">0</span></span>
-        <button class="nav-btn" id="nextBtn" disabled>Selanjutnya ❯</button>
-    </footer>
 
     <!-- Embed Modal -->
     <div id="embedModal" class="modal">
         <div class="modal-content">
             <span class="close" onclick="document.getElementById('embedModal').style.display='none'">&times;</span>
             <h3>Embed Code</h3>
-            <p>Kode di bawah akan memunculkan <b>Password Lock</b> dan <b>Tanpa Header</b> di website target.</p>
+            <p>Fitur: Password Protected, Auto-Resize, Swipe Support.</p>
             <textarea id="embedCode" readonly onclick="this.select()"></textarea>
             <button class="btn btn-upload" onclick="copyEmbed()">Salin Kode</button>
         </div>
@@ -243,7 +301,7 @@
         // ==========================================
         // KONFIGURASI PASSWORD
         // ==========================================
-        const PASSWORD_BUKU = "NomorAnggota"; // <--- GANTI PASSWORD ANDA DI SINI
+        const PASSWORD_BUKU = "NomorAnggota"; // GANTI PASSWORD DI SINI
         // ==========================================
 
         const state = {
@@ -264,34 +322,22 @@
             loading: document.getElementById('loading'),
             loadingText: document.getElementById('loading-text'),
             emptyState: document.getElementById('empty-state'),
-            prevBtn: document.getElementById('prevBtn'),
-            nextBtn: document.getElementById('nextBtn'),
-            curPage: document.getElementById('cur-page'),
-            totPage: document.getElementById('tot-page')
+            mainContainer: document.getElementById('main-container'),
+            navPrev: document.getElementById('nav-prev'),
+            navNext: document.getElementById('nav-next')
         };
 
-        // --- DETECT IFRAME (LOGIKA UTAMA) ---
+        // --- DETECT IFRAME ---
         window.addEventListener('DOMContentLoaded', () => {
-            // Cek apakah halaman ini ada di dalam iframe (Embed) atau Tab Utama
             if (window.self !== window.top) {
-                // JIKA DI EMBED (Iframe):
-                // 1. Tambah class 'is-embedded' untuk menyembunyikan header via CSS
                 document.body.classList.add('is-embedded');
-                // 2. Aktifkan Kunci Password
                 document.body.classList.add('locked');
                 els.lockOverlay.style.display = 'flex';
-                console.log("Mode Embed: Password Aktif & Header Disembunyikan");
+                console.log("Mode Embed: Password Aktif");
             } else {
-                // JIKA DI HALAMAN UTAMA (Tab Browser):
-                // 1. Hapus class embedded (Header tampil)
-                document.body.classList.remove('is-embedded');
-                // 2. Buka Kunci (Tidak ada password)
                 document.body.classList.remove('locked');
                 els.lockOverlay.style.display = 'none';
-                state.isUnlocked = true; 
-                console.log("Mode Utama: Bebas Akses");
-                
-                // Load PDF jika ada parameter URL
+                state.isUnlocked = true;
                 const params = new URLSearchParams(window.location.search);
                 if (params.get('pdf')) loadPdfFromUrl(params.get('pdf'));
             }
@@ -304,11 +350,8 @@
                 state.isUnlocked = true;
                 document.body.classList.remove('locked');
                 els.lockOverlay.style.display = 'none';
-                
                 const params = new URLSearchParams(window.location.search);
-                if (params.get('pdf') && !state.pdfDoc) {
-                    loadPdfFromUrl(params.get('pdf'));
-                }
+                if (params.get('pdf') && !state.pdfDoc) loadPdfFromUrl(params.get('pdf'));
             } else {
                 els.errorMsg.textContent = "Password Salah!";
                 els.passInput.style.borderColor = "red";
@@ -316,6 +359,58 @@
                     els.passInput.style.borderColor = "#ccc";
                     els.errorMsg.textContent = "";
                 }, 2000);
+            }
+        }
+
+        // --- NAVIGATION (Click & Swipe) ---
+        
+        // 1. Klik Panah
+        els.navPrev.addEventListener('click', (e) => {
+            e.stopPropagation(); // Biar tidak trigger klik layar
+            flip('prev');
+        });
+        els.navNext.addEventListener('click', (e) => {
+            e.stopPropagation();
+            flip('next');
+        });
+
+        // 2. Klik Layar (Kiri = Prev, Kanan = Next)
+        els.book.addEventListener('click', (e) => {
+            if (!state.isUnlocked) return;
+            const rect = els.book.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+            
+            // Jika klik di separuh kiri buku -> Prev, Kanan -> Next
+            if (clickX < rect.width / 2) {
+                flip('prev');
+            } else {
+                flip('next');
+            }
+        });
+
+        // 3. Swipe (Touch Support)
+        let touchStartX = 0;
+        let touchEndX = 0;
+
+        els.mainContainer.addEventListener('touchstart', (e) => {
+            touchStartX = e.changedTouches[0].screenX;
+        }, {passive: true});
+
+        els.mainContainer.addEventListener('touchend', (e) => {
+            if (!state.isUnlocked) return;
+            touchEndX = e.changedTouches[0].screenX;
+            handleSwipe();
+        }, {passive: true});
+
+        function handleSwipe() {
+            const threshold = 50; // Jarak minimal swipe
+            if (touchEndX < touchStartX - threshold) {
+                // Swipe Kiri -> Next
+                flip('next');
+            }
+            if (touchEndX > touchStartX + threshold) {
+                // Swipe Kanan -> Prev
+                flip('prev');
             }
         }
 
@@ -364,12 +459,12 @@
             state.pages = [];
             state.currentSheet = 0;
             els.book.innerHTML = '';
-            els.totPage.textContent = pdf.numPages;
 
             for (let i = 1; i <= pdf.numPages; i++) {
                 els.loadingText.textContent = `Merender halaman ${i}/${pdf.numPages}...`;
                 const page = await pdf.getPage(i);
-                const viewport = page.getViewport({ scale: 1.5 });
+                // Render dengan skala tinggi agar tajam
+                const viewport = page.getViewport({ scale: 1.8 });
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
                 canvas.height = viewport.height;
@@ -390,7 +485,6 @@
                 const sheet = document.createElement('div');
                 sheet.className = 'page';
                 sheet.id = `sheet-${i}`;
-                sheet.onclick = () => i < state.currentSheet ? flip('prev') : flip('next');
 
                 const front = document.createElement('div');
                 front.className = 'front';
@@ -435,10 +529,18 @@
         }
 
         function updateUI() {
-            els.prevBtn.disabled = state.currentSheet === 0;
-            els.nextBtn.disabled = state.currentSheet >= state.numSheets;
-            const p = (state.currentSheet * 2) + 1;
-            els.curPage.textContent = p > state.pages.length ? state.pages.length : p;
+            // Update status panah
+            if (state.currentSheet === 0) {
+                els.navPrev.classList.add('disabled');
+            } else {
+                els.navPrev.classList.remove('disabled');
+            }
+
+            if (state.currentSheet >= state.numSheets) {
+                els.navNext.classList.add('disabled');
+            } else {
+                els.navNext.classList.remove('disabled');
+            }
         }
 
         // --- EMBED ---
@@ -460,16 +562,6 @@
             document.execCommand('copy');
             alert('Kode disalin!');
         }
-
-        // Keyboard Nav
-        document.addEventListener('keydown', (e) => {
-            if(e.key === 'ArrowLeft') flip('prev');
-            if(e.key === 'ArrowRight') flip('next');
-        });
-
-        els.prevBtn.onclick = () => flip('prev');
-        els.nextBtn.onclick = () => flip('next');
-
     </script>
 </body>
 </html>
