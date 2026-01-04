@@ -2,560 +2,424 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Secure PDF Flipbook</title>
-    <!-- Memuat PDF.js -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-    <script>
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-    </script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Flipbook Realistis</title>
     
+    <!-- Memuat library Page Flip untuk animasi 3D -->
+    <script src="https://cdn.jsdelivr.net/npm/page-flip/dist/js/page-flip.browser.js"></script>
+    
+    <!-- Memuat library PDF.js untuk render PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
     <style>
         :root {
-            --primary-color: #2c3e50;
-            --accent-color: #3498db;
-            --bg-color: #e0e5ec;
-            --anim-speed: 0.6s;
-            --arrow-size: 50px;
+            --primary-color: #4a90e2;
+            --bg-color: #f0f2f5;
+            --text-color: #333;
+            --panel-bg: rgba(255, 255, 255, 0.9);
+            --shadow: 0 4px 15px rgba(0,0,0,0.1);
         }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
 
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background-color: var(--bg-color);
+            color: var(--text-color);
             height: 100vh;
-            width: 100vw;
             display: flex;
             flex-direction: column;
-            overflow: hidden; /* Mencegah scroll */
-            color: #333;
+            overflow: hidden; /* Mencegah scroll body utama agar hanya buku yang berinteraksi */
         }
 
-        /* --- HEADER (Menu Atas) --- */
+        /* Header Controls */
         header {
-            background: white;
+            background: var(--panel-bg);
+            backdrop-filter: blur(10px);
             padding: 10px 20px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            z-index: 50;
-            height: 60px;
-            flex-shrink: 0;
+            box-shadow: var(--shadow);
+            z-index: 100;
+            flex-wrap: wrap;
+            gap: 10px;
         }
 
-        /* Sembunyikan Header saat di Embed */
-        body.is-embedded header { display: none; }
-
-        .brand { font-weight: bold; font-size: 1.2rem; color: var(--primary-color); }
-        .btn {
-            padding: 6px 14px; border: none; border-radius: 6px; cursor: pointer;
-            font-size: 0.9rem; color: white; margin-left: 5px;
+        h1 {
+            font-size: 1.2rem;
+            color: var(--primary-color);
+            font-weight: 700;
         }
-        .btn-upload { background: var(--accent-color); }
-        .btn-embed { background: var(--primary-color); }
-        input[type="file"] { display: none; }
 
-        /* --- MAIN CONTENT --- */
+        .controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        input[type="text"] {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            width: 200px;
+            font-size: 0.9rem;
+            transition: width 0.3s;
+        }
+
+        input[type="text"]:focus {
+            width: 300px;
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.2s, transform 0.1s;
+        }
+
+        button:hover {
+            background-color: #357abd;
+        }
+
+        button:active {
+            transform: scale(0.95);
+        }
+
+        button.secondary {
+            background-color: #6c757d;
+        }
+
+        /* Main Flipbook Container */
         main {
             flex: 1;
             display: flex;
             justify-content: center;
             align-items: center;
+            padding: 20px;
             position: relative;
-            perspective: 2000px;
             overflow: hidden;
-            width: 90%;
         }
 
-        /* Loading Screen */
-        #loading {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(255,255,255,0.95);
-            display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 90;
-        }
-        .loader {
-            border: 5px solid #f3f3f3; border-top: 5px solid var(--accent-color);
-            border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 15px;
-        }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-
-        .empty-msg { text-align: center; color: #7f8c8d; padding: 20px; }
-
-        /* --- RESPONSIVE BOOK 3D --- */
-        .book-container {
-            width: 100%;
-            max-width: 450px;
-            height: 100%;
-            max-height: 85vh;
-            position: relative;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+        /* Container khusus untuk PageFlip */
+        .flip-book {
+            box-shadow: 0 0 20px rgba(0,0,0,0.2);
+            display: none; /* Disembunyikan sampai loading selesai */
         }
 
-        .book {
-            position: relative;
-            width: 100%;
-            height: 100%;
-            transform-style: preserve-3d;
-            /* Rasio A4 kira-kira 1 : 1.414, kita pakai aspect ratio agar tidak kepotong */
-            aspect-ratio: 1 / 1.414; 
-        }
-
+        /* Styling halaman individual */
         .page {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            top: 0;
-            left: 0;
-            transform-origin: left center; /* Putar di tulang buku kiri */
-            transform-style: preserve-3d;
-            transition: transform var(--anim-speed) cubic-bezier(0.645, 0.045, 0.355, 1);
-            cursor: pointer;
-            /* Shadow halus untuk efek realistis */
-            box-shadow: inset 5px 0 10px rgba(0,0,0,0.05); 
-        }
-
-        .front, .back {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            backface-visibility: hidden;
             background-color: white;
             overflow: hidden;
+            border: 1px solid #ddd; /* Garis tipis tepi kertas */
         }
 
-        /* Sisi Depan */
-        .front { 
-            z-index: 2; 
-            border-radius: 0 4px 4px 0; /* Sudut kanan melengkung */
-            box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
-        }
-
-        /* Sisi Belakang */
-        .back {
-            transform: rotateY(180deg);
-            z-index: 1;
-            border-radius: 4px 0 0 4px; /* Sudut kiri melengkung saat dibalik */
-            box-shadow: inset -2px 0 5px rgba(0,0,0,0.05);
-            background: #fdfdfd;
-        }
-
-        .page img {
+        .page-content {
             width: 100%;
             height: 100%;
-            object-fit: contain; /* Gambar pas di dalam kotak */
-            pointer-events: none; /* Biarkan klik tembus ke div page */
-        }
-
-        .page.flipped { transform: rotateY(-180deg); }
-
-        /* --- NAVIGATION ARROWS (PANAH) --- */
-        .nav-arrow {
-            position: absolute;
-            buttom: 20%;
-            transform: translateY(-50%);
-            width: var(--arrow-size);
-            height: var(--arrow-size);
-            background: rgba(255, 255, 255, 0.7);
-            border-radius: 50%;
             display: flex;
             justify-content: center;
             align-items: center;
-            cursor: pointer;
-            z-index: 100;
-            font-size: 24px;
-            color: var(--primary-color);
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            transition: all 0.2s;
-            user-select: none;
         }
 
-        .nav-arrow:hover {
-            background: rgba(255, 255, 255, 1);
-            transform: translateY(-50%) scale(1.1);
+        /* Canvas yang berisi halaman PDF */
+        canvas {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
         }
 
-        .nav-arrow:active { transform: translateY(-50%) scale(0.95); }
-
-        .nav-prev { left: 10px; }
-        .nav-next { right: 10px; }
-        
-        /* Disabled state for arrows */
-        .nav-arrow.disabled {
-            opacity: 0.2;
-            pointer-events: none;
-        }
-
-        /* --- PASSWORD LOCK --- */
-        #lock-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(44, 62, 80, 0.98); z-index: 9999;
-            display: none;
-            justify-content: center; align-items: center;
+        /* Loading Overlay */
+        #loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255,255,255,0.9);
+            display: flex;
             flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
         }
 
-        .lock-box {
-            background: white; padding: 30px; border-radius: 12px; text-align: center;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.5); width: 85%; max-width: 300px;
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid var(--primary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 15px;
         }
-        
-        .lock-icon { font-size: 3rem; margin-bottom: 15px; display: block; }
-        .lock-box h2 { margin-bottom: 10px; color: #333; font-size: 1.2rem; }
-        .lock-box p { margin-bottom: 20px; color: #666; font-size: 0.9rem; }
-        
-        #pass-input {
-            width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #ccc;
-            border-radius: 6px; font-size: 1rem; text-align: center;
-        }
-        
-        #unlock-btn {
-            width: 100%; padding: 12px; background: var(--accent-color); color: white;
-            border: none; border-radius: 6px; font-size: 1rem; cursor: pointer; font-weight: bold;
-        }
-        #unlock-btn:hover { background: #2980b9; }
-        
-        #error-msg { color: #e74c3c; font-size: 0.85rem; margin-top: 10px; min-height: 1.2rem; }
 
-        /* --- MODAL --- */
-        .modal {
-            display: none; position: fixed; z-index: 10000; left: 0; top: 0;
-            width: 100%; height: 100%; background-color: rgba(0,0,0,0.6);
-            justify-content: center; align-items: center;
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
-        .modal-content {
-            background-color: #fefefe; padding: 25px; border-radius: 8px;
-            width: 90%; max-width: 500px; position: relative;
+
+        /* Toast Notification */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #333;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+            z-index: 1000;
         }
-        .close { position: absolute; right: 20px; top: 10px; font-size: 24px; cursor: pointer; }
-        textarea { width: 100%; height: 80px; margin-top: 10px; padding: 10px; font-family: monospace; }
 
-        /* Blur effect when locked */
-        body.locked main, body.locked header, body.locked .nav-arrow { filter: blur(8px); pointer-events: none; }
+        .toast.show {
+            opacity: 1;
+        }
 
+        /* Responsiveness */
+        @media (max-width: 768px) {
+            header {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            input[type="text"] {
+                width: 100%;
+            }
+            input[type="text"]:focus {
+                width: 100%;
+            }
+            .controls {
+                justify-content: space-between;
+                margin-top: 10px;
+            }
+            main {
+                padding: 10px;
+            }
+        }
     </style>
 </head>
 <body>
-    <!-- Password Lock Overlay -->
-    <div id="lock-overlay">
-        <div class="lock-box">
-            <span class="lock-icon">🔒</span>
-            <h2>Dokumen Terkunci</h2>
-            <p>Masukkan password untuk membaca.</p>
-            <input type="password" id="pass-input" placeholder="Password..." onkeydown="if(event.key==='Enter') verifyPassword()">
-            <button id="unlock-btn" onclick="verifyPassword()">BUKA DOKUMEN</button>
-            <div id="error-msg"></div>
-        </div>
-    </div>
 
-    <!-- Header (Menu Atas) -->
     <header>
-        <div class="brand">📖 Flipbook Viewer</div>
-        <div>
-            <button class="btn btn-embed" onclick="openEmbedModal()">📋 Get Embed</button>
-            <label class="btn btn-upload">
-                📂 Upload PDF
-                <input type="file" id="file-input" accept="application/pdf">
-            </label>
+        <h1>📖 PDF Flipbook Viewer</h1>
+        <div class="controls">
+            <input type="text" id="pdf-url-input" placeholder="Tempel URL PDF (GitHub Raw)" value="">
+            <button onclick="loadPdfFromInput()">Buka</button>
+            <button class="secondary" onclick="document.getElementById('pdf-url-input').value = ''">Reset</button>
         </div>
     </header>
 
-    <main id="main-container">
-        <div id="loading">
-            <div class="loader"></div>
-            <p id="loading-text">Sedang memproses...</p>
+    <main id="book-container">
+        <!-- Elemen Loading -->
+        <div id="loading-overlay">
+            <div class="spinner"></div>
+            <p id="loading-text">Memuat Flipbook...</p>
         </div>
 
-        <div class="empty-msg" id="empty-state">
-            <h3>Belum ada PDF</h3>
-            <p>Upload file PDF atau gunakan parameter URL.</p>
-        </div>
-
-        <!-- Panah Navigasi -->
-        <div id="nav-prev" class="nav-arrow nav-prev disabled">❮</div>
-        <div id="nav-next" class="nav-arrow nav-next disabled">❯</div>
-
-        <!-- Container Buku -->
-        <div class="book-container">
-            <div class="book" id="book">
-                <!-- Halaman generate JS -->
-            </div>
-        </div>
+        <!-- Wadah Buku -->
+        <div class="flip-book" id="flipbook"></div>
     </main>
 
-    <!-- Embed Modal -->
-    <div id="embedModal" class="modal">
-        <div class="modal-content">
-            <span class="close" onclick="document.getElementById('embedModal').style.display='none'">&times;</span>
-            <h3>Embed Code</h3>
-            <p>Fitur: Password Protected, Auto-Resize, Swipe Support.</p>
-            <textarea id="embedCode" readonly onclick="this.select()"></textarea>
-            <button class="btn btn-upload" onclick="copyEmbed()">Salin Kode</button>
-        </div>
-    </div>
+    <!-- Notifikasi Toast -->
+    <div id="toast" class="toast">Pesan notifikasi</div>
 
     <script>
-        // ==========================================
-        // KONFIGURASI PASSWORD
-        // ==========================================
-        const PASSWORD_BUKU = "NomorAnggota"; // <--- GANTI PASSWORD ANDA DI SINI
-        // ==========================================
+        // Setup Worker untuk PDF.js
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-        const state = {
-            pdfDoc: null,
-            pages: [],
-            numSheets: 0,
-            currentSheet: 0,
-            isUnlocked: false,
-            pdfFileName: null
-        };
+        // State global
+        let pageFlip = null;
+        let pdfDoc = null;
+        const bookContainer = document.getElementById('flipbook');
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const loadingText = document.getElementById('loading-text');
+        const urlInput = document.getElementById('pdf-url-input');
 
-        const els = {
-            lockOverlay: document.getElementById('lock-overlay'),
-            passInput: document.getElementById('pass-input'),
-            errorMsg: document.getElementById('error-msg'),
-            fileInput: document.getElementById('file-input'),
-            book: document.getElementById('book'),
-            loading: document.getElementById('loading'),
-            loadingText: document.getElementById('loading-text'),
-            emptyState: document.getElementById('empty-state'),
-            mainContainer: document.getElementById('main-container'),
-            navPrev: document.getElementById('nav-prev'),
-            navNext: document.getElementById('nav-next')
-        };
+        // Contoh PDF (Kosongkan jika ingin user memasukkan sendiri)
+        // Menggunakan PDF contoh umum untuk demo. Ganti ini dengan URL GitHub Raw Anda.
+        const DEFAULT_PDF = "https://raw.githubusercontent.com/mozilla/pdf.js/ba2edeae/web/compressed.tracemonkey-pldi-09.pdf";
 
-        // --- DETECT IFRAME (LOGIKA DIPERKUAT) ---
+        // Inisialisasi awal
         window.addEventListener('DOMContentLoaded', () => {
-            let isEmbedded = false;
-
-            try {
-                // Cek biasa
-                if (window.self !== window.top) {
-                    isEmbedded = true;
-                }
-            } catch (e) {
-                // Jika error (biasanya karena CORS/Sandbox), asumsikan ini Embed
-                isEmbedded = true;
-            }
-
-            if (isEmbedded) {
-                // Mode Embed: Hilangkan Header & Aktifkan Password
-                document.body.classList.add('is-embedded');
-                document.body.classList.add('locked');
-                els.lockOverlay.style.display = 'flex';
-                console.log("Mode Embed: Password Aktif & Header Disembunyikan");
-            } else {
-                // Mode Utama: Bebas Akses
-                document.body.classList.remove('is-embedded');
-                document.body.classList.remove('locked');
-                els.lockOverlay.style.display = 'none';
-                state.isUnlocked = true;
-                console.log("Mode Utama: Bebas Akses");
-                
-                const params = new URLSearchParams(window.location.search);
-                if (params.get('pdf')) loadPdfFromUrl(params.get('pdf'));
-            }
+            // Cek apakah ada parameter URL di link (opsional untuk advanced usage)
+            const urlParams = new URLSearchParams(window.location.search);
+            const pdfUrl = urlParams.get('url') || DEFAULT_PDF;
+            
+            urlInput.value = pdfUrl;
+            initBook(pdfUrl);
         });
 
-        // --- PASSWORD LOGIC ---
-        function verifyPassword() {
-            const input = els.passInput.value;
-            if (input === PASSWORD_BUKU) {
-                state.isUnlocked = true;
-                document.body.classList.remove('locked');
-                els.lockOverlay.style.display = 'none';
-                const params = new URLSearchParams(window.location.search);
-                if (params.get('pdf') && !state.pdfDoc) loadPdfFromUrl(params.get('pdf'));
-            } else {
-                els.errorMsg.textContent = "Password Salah!";
-                els.passInput.style.borderColor = "red";
-                setTimeout(() => {
-                    els.passInput.style.borderColor = "#ccc";
-                    els.errorMsg.textContent = "";
-                }, 2000);
-            }
-        }
-
-        // --- NAVIGATION (Click & Swipe) ---
-        els.navPrev.addEventListener('click', (e) => {
-            e.stopPropagation();
-            flip('prev');
-        });
-        els.navNext.addEventListener('click', (e) => {
-            e.stopPropagation();
-            flip('next');
-        });
-
-        els.book.addEventListener('click', (e) => {
-            if (!state.isUnlocked) return;
-            const rect = els.book.getBoundingClientRect();
-            const clickX = e.clientX - rect.left;
-            if (clickX < rect.width / 2) flip('prev');
-            else flip('next');
-        });
-
-        let touchStartX = 0;
-        let touchEndX = 0;
-
-        els.mainContainer.addEventListener('touchstart', (e) => {
-            touchStartX = e.changedTouches[0].screenX;
-        }, {passive: true});
-
-        els.mainContainer.addEventListener('touchend', (e) => {
-            if (!state.isUnlocked) return;
-            touchEndX = e.changedTouches[0].screenX;
-            handleSwipe();
-        }, {passive: true});
-
-        function handleSwipe() {
-            const threshold = 50;
-            if (touchEndX < touchStartX - threshold) flip('next');
-            if (touchEndX > touchStartX + threshold) flip('prev');
-        }
-
-        // --- PDF HANDLING ---
-        els.fileInput.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (file) {
-                state.pdfFileName = file.name;
-                const reader = new FileReader();
-                reader.onload = function() {
-                    loadPdf(new Uint8Array(this.result));
-                };
-                reader.readAsArrayBuffer(file);
-            }
-        });
-
-        async function loadPdfFromUrl(url) {
-            try {
-                els.loading.style.display = 'flex';
-                els.emptyState.style.display = 'none';
-                state.pdfFileName = url.split('/').pop();
-                const pdf = await pdfjsLib.getDocument(url).promise;
-                await renderPages(pdf);
-            } catch (err) {
-                console.error(err);
-                alert("Gagal memuat PDF. Pastikan file ada di server.");
-                els.loading.style.display = 'none';
-                els.emptyState.style.display = 'block';
-            }
-        }
-
-        async function loadPdf(data) {
-            try {
-                els.loading.style.display = 'flex';
-                els.emptyState.style.display = 'none';
-                const pdf = await pdfjsLib.getDocument(data).promise;
-                await renderPages(pdf);
-            } catch (err) {
-                alert("Gagal memuat PDF.");
-                els.loading.style.display = 'none';
-            }
-        }
-
-        async function renderPages(pdf) {
-            state.pdfDoc = pdf;
-            state.pages = [];
-            state.currentSheet = 0;
-            els.book.innerHTML = '';
-
-            for (let i = 1; i <= pdf.numPages; i++) {
-                els.loadingText.textContent = `Merender halaman ${i}/${pdf.numPages}...`;
-                const page = await pdf.getPage(i);
-                const viewport = page.getViewport({ scale: 1.8 });
-                const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d');
-                canvas.height = viewport.height;
-                canvas.width = viewport.width;
-                await page.render({ canvasContext: ctx, viewport }).promise;
-                state.pages.push(canvas.toDataURL('image/jpeg', 0.85));
-            }
-
-            createBook();
-            els.loading.style.display = 'none';
-            updateZIndex();
-            updateUI();
-        }
-
-        function createBook() {
-            state.numSheets = Math.ceil(state.pages.length / 2);
-            for (let i = 0; i < state.numSheets; i++) {
-                const sheet = document.createElement('div');
-                sheet.className = 'page';
-                sheet.id = `sheet-${i}`;
-
-                const front = document.createElement('div');
-                front.className = 'front';
-                if (i * 2 < state.pages.length) {
-                    const img = document.createElement('img');
-                    img.src = state.pages[i * 2];
-                    front.appendChild(img);
-                }
-
-                const back = document.createElement('div');
-                back.className = 'back';
-                if (i * 2 + 1 < state.pages.length) {
-                    const img = document.createElement('img');
-                    img.src = state.pages[i * 2 + 1];
-                    back.appendChild(img);
-                }
-
-                sheet.appendChild(front);
-                sheet.appendChild(back);
-                els.book.appendChild(sheet);
-            }
-        }
-
-        function flip(dir) {
-            if (!state.isUnlocked) return;
-            if (dir === 'next' && state.currentSheet < state.numSheets) {
-                document.getElementById(`sheet-${state.currentSheet}`).classList.add('flipped');
-                state.currentSheet++;
-            } else if (dir === 'prev' && state.currentSheet > 0) {
-                state.currentSheet--;
-                document.getElementById(`sheet-${state.currentSheet}`).classList.remove('flipped');
-            }
-            updateZIndex();
-            updateUI();
-        }
-
-        function updateZIndex() {
-            for (let i = 0; i < state.numSheets; i++) {
-                const sheet = document.getElementById(`sheet-${i}`);
-                sheet.style.zIndex = i < state.currentSheet ? i + 1 : state.numSheets - i;
-            }
-        }
-
-        function updateUI() {
-            if (state.currentSheet === 0) els.navPrev.classList.add('disabled');
-            else els.navPrev.classList.remove('disabled');
-
-            if (state.currentSheet >= state.numSheets) els.navNext.classList.add('disabled');
-            else els.navNext.classList.remove('disabled');
-        }
-
-        // --- EMBED ---
-        function openEmbedModal() {
-            if (!state.pdfFileName && !state.pdfDoc) {
-                alert("Upload PDF dulu.");
+        // Fungsi untuk menangani tombol "Buka"
+        function loadPdfFromInput() {
+            const url = urlInput.value.trim();
+            if (!url) {
+                showToast("Mohon masukkan URL PDF yang valid");
                 return;
             }
-            const baseUrl = window.location.href.split('?')[0];
-            const embedSrc = `${baseUrl}?pdf=${state.pdfFileName}`;
-            const code = `<iframe src="${embedSrc}" width="100%" height="600px" style="border:none;" allowfullscreen></iframe>`;
-            document.getElementById('embedCode').value = code;
-            document.getElementById('embedModal').style.display = 'flex';
+            // Hapus buku lama jika ada
+            if (pageFlip) {
+                pageFlip.destroy();
+                bookContainer.innerHTML = '';
+            }
+            initBook(url);
         }
 
-        function copyEmbed() {
-            const el = document.getElementById('embedCode');
-            el.select();
-            document.execCommand('copy');
-            alert('Kode disalin!');
+        // Fungsi Utama: Inisialisasi Buku
+        async function initBook(url) {
+            showLoading(true, "Mengunduh PDF...");
+            
+            try {
+                // 1. Load Dokumen PDF
+                const loadingTask = pdfjsLib.getDocument(url);
+                pdfDoc = await loadingTask.promise;
+                
+                showLoading(true, `Merender ${pdfDoc.numPages} halaman...`);
+
+                // 2. Tentukan Ukuran Buku (Responsive)
+                // Kita ambi ukuran dari layar untuk menentukan skala buku yang pas
+                const maxWidth = window.innerWidth > 768 ? window.innerWidth * 0.8 : window.innerWidth - 30;
+                const maxHeight = window.innerHeight - 150;
+                
+                // Render halaman pertama untuk mendapatkan rasio aspek
+                const firstPage = await pdfDoc.getPage(1);
+                const viewport = firstPage.getViewport({ scale: 1 });
+                const aspectRatio = viewport.width / viewport.height;
+
+                // Hitung dimensi buku
+                let bookWidth = maxWidth;
+                let bookHeight = bookWidth / aspectRatio;
+
+                // Jika tingginya melebihi layar, sesuaikan berdasarkan tinggi
+                if (bookHeight > maxHeight) {
+                    bookHeight = maxHeight;
+                    bookWidth = bookHeight * aspectRatio;
+                }
+
+                // 3. Render setiap halaman PDF menjadi Canvas
+                const pages = [];
+                for (let i = 1; i <= pdfDoc.numPages; i++) {
+                    const pageDiv = document.createElement('div');
+                    pageDiv.className = 'page';
+                    
+                    // Wrapper konten halaman
+                    const contentDiv = document.createElement('div');
+                    contentDiv.className = 'page-content';
+                    
+                    const canvas = document.createElement('canvas');
+                    contentDiv.appendChild(canvas);
+                    pageDiv.appendChild(contentDiv);
+                    bookContainer.appendChild(pageDiv);
+                    
+                    // Render PDF ke Canvas
+                    await renderPageToCanvas(i, canvas);
+                    
+                    pages.push(pageDiv);
+                }
+
+                showLoading(true, "Membuat Efek 3D...");
+
+                // 4. Inisialisasi PageFlip Library
+                pageFlip = new St.PageFlip(bookContainer, {
+                    width: bookWidth, // Lebar satu halaman
+                    height: bookHeight, // Tinggi satu halaman
+                    size: "stretch",
+                    minWidth: 300,
+                    maxWidth: 1000,
+                    minHeight: 400,
+                    maxHeight: 1200,
+                    maxShadowOpacity: 0.5, // Realisme bayangan
+                    showCover: true,
+                    mobileScrollSupport: false // Matikan scroll browser saat di buku
+                });
+
+                // Memuat halaman DOM ke dalam engine PageFlip
+                pageFlip.loadFromHTML(pages);
+
+                // Event Listener untuk mengatur layout responsive
+                pageFlip.on('flipState', (e) => {
+                    // Bisa ditambahkan logika analitik di sini
+                });
+
+                showLoading(false);
+
+            } catch (error) {
+                console.error(error);
+                showLoading(false);
+                let msg = "Gagal memuat PDF.";
+                if (error.name === 'UnexpectedResponseException') {
+                    msg = "Error CORS: Pastikan URL adalah 'raw.githubusercontent.com'.";
+                } else if (error.message.includes('Invalid PDF')) {
+                    msg = "File bukan PDF yang valid.";
+                }
+                showToast(msg);
+                alert(msg); // Fallback untuk jelas
+            }
         }
+
+        // Helper: Render satu halaman ke canvas
+        async function renderPageToCanvas(pageNum, canvas) {
+            const page = await pdfDoc.getPage(pageNum);
+            
+            // Skala kualitas tinggi (2x agar tajam di retina)
+            const scale = 1.5; 
+            const viewport = page.getViewport({ scale: scale });
+
+            const context = canvas.getContext('2d');
+            canvas.height = viewport.height;
+            canvas.width = viewport.width;
+
+            const renderContext = {
+                canvasContext: context,
+                viewport: viewport
+            };
+            
+            await page.render(renderContext).promise;
+        }
+
+        // Helper: UI Loading
+        function showLoading(show, text = "") {
+            loadingOverlay.style.display = show ? 'flex' : 'none';
+            if(text) loadingText.innerText = text;
+        }
+
+        // Helper: Toast Message
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            toast.innerText = message;
+            toast.classList.add('show');
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        // Handle Window Resize (Responsive Logic)
+        let resizeTimeout;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(() => {
+                if (pageFlip && pdfDoc) {
+                    // Perbarui dimensi buku saat ukuran layar berubah drastis
+                    // Ini memicu ulang kalkulasi ukuran di pageFlip jika diperlukan
+                    // Namun, library 'page-flip' dengan size: "stretch" biasanya menangani CSS dengan baik.
+                    // Kita hanya perlu memastikan CSS container parent-nya fleksibel.
+                    pageFlip.updateState(); 
+                }
+            }, 300);
+        });
+
     </script>
 </body>
 </html>
