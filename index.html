@@ -30,12 +30,11 @@
             flex-direction: column;
             overflow: hidden;
             color: #333;
-            /* Default unlocked state */
             filter: blur(0px); 
             transition: filter 0.5s;
         }
 
-        /* --- HEADER --- */
+        /* --- HEADER (Menu Atas) --- */
         header {
             background: white;
             padding: 10px 20px;
@@ -45,6 +44,12 @@
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             z-index: 50;
             height: 60px;
+            flex-shrink: 0;
+        }
+
+        /* --- PENTING: Sembunyikan Header saat di Embed --- */
+        body.is-embedded header {
+            display: none;
         }
 
         .brand { font-weight: bold; font-size: 1.2rem; color: var(--primary-color); }
@@ -67,6 +72,8 @@
             position: relative;
             perspective: 2000px;
             overflow: hidden;
+            /* Saat embed, padding diatur ulang agar full screen jika perlu */
+            padding: 20px;
         }
 
         /* Loading Screen */
@@ -113,6 +120,7 @@
         footer {
             height: 60px; background: white; border-top: 1px solid #ddd;
             display: flex; justify-content: center; align-items: center; gap: 20px; z-index: 50;
+            flex-shrink: 0;
         }
         .nav-btn {
             background: none; border: 1px solid #ccc; padding: 8px 16px; border-radius: 4px;
@@ -125,7 +133,7 @@
         #lock-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(44, 62, 80, 0.98); z-index: 9999;
-            display: none; /* Hidden by default */
+            display: none;
             justify-content: center; align-items: center;
             flex-direction: column;
         }
@@ -166,7 +174,7 @@
         .close { position: absolute; right: 20px; top: 10px; font-size: 24px; cursor: pointer; }
         textarea { width: 100%; height: 80px; margin-top: 10px; padding: 10px; }
 
-        /* Blur effect when locked class is added to body */
+        /* Blur effect when locked */
         body.locked main { filter: blur(10px); pointer-events: none; }
         body.locked footer { filter: blur(5px); pointer-events: none; }
         body.locked header { filter: blur(2px); pointer-events: none; }
@@ -174,9 +182,7 @@
     </style>
 </head>
 <body>
-    <!-- Tidak ada class="locked" di sini, akan ditambahkan otomatis via JS jika di Embed -->
-
-    <!-- PASSWORD LOCK OVERLAY -->
+    <!-- Password Lock Overlay -->
     <div id="lock-overlay">
         <div class="lock-box">
             <span class="lock-icon">🔒</span>
@@ -188,6 +194,7 @@
         </div>
     </div>
 
+    <!-- Header (Menu Atas - Akan hilang saat Embed) -->
     <header>
         <div class="brand">📖 Flipbook Viewer</div>
         <div>
@@ -226,7 +233,7 @@
         <div class="modal-content">
             <span class="close" onclick="document.getElementById('embedModal').style.display='none'">&times;</span>
             <h3>Embed Code</h3>
-            <p>Kode di bawah akan memunculkan <b>Password Lock</b> di website target.</p>
+            <p>Kode di bawah akan memunculkan <b>Password Lock</b> dan <b>Tanpa Header</b> di website target.</p>
             <textarea id="embedCode" readonly onclick="this.select()"></textarea>
             <button class="btn btn-upload" onclick="copyEmbed()">Salin Kode</button>
         </div>
@@ -236,7 +243,7 @@
         // ==========================================
         // KONFIGURASI PASSWORD
         // ==========================================
-        const PASSWORD_BUKU = "123456"; // <--- GANTI PASSWORD ANDA DI SINI
+        const PASSWORD_BUKU = "NomorAnggota"; // <--- GANTI PASSWORD ANDA DI SINI
         // ==========================================
 
         const state = {
@@ -267,18 +274,24 @@
         window.addEventListener('DOMContentLoaded', () => {
             // Cek apakah halaman ini ada di dalam iframe (Embed) atau Tab Utama
             if (window.self !== window.top) {
-                // JIKA DI EMBED (Iframe): Aktifkan Kunci
+                // JIKA DI EMBED (Iframe):
+                // 1. Tambah class 'is-embedded' untuk menyembunyikan header via CSS
+                document.body.classList.add('is-embedded');
+                // 2. Aktifkan Kunci Password
                 document.body.classList.add('locked');
                 els.lockOverlay.style.display = 'flex';
-                console.log("Mode Embed: Password Aktif");
+                console.log("Mode Embed: Password Aktif & Header Disembunyikan");
             } else {
-                // JIKA DI HALAMAN UTAMA (Tab Browser): Buka Kunci
+                // JIKA DI HALAMAN UTAMA (Tab Browser):
+                // 1. Hapus class embedded (Header tampil)
+                document.body.classList.remove('is-embedded');
+                // 2. Buka Kunci (Tidak ada password)
                 document.body.classList.remove('locked');
                 els.lockOverlay.style.display = 'none';
-                state.isUnlocked = true; // Langsung buka
-                console.log("Mode Utama: Tidak ada Password");
+                state.isUnlocked = true; 
+                console.log("Mode Utama: Bebas Akses");
                 
-                // Load PDF jika ada parameter URL untuk testing di main page
+                // Load PDF jika ada parameter URL
                 const params = new URLSearchParams(window.location.search);
                 if (params.get('pdf')) loadPdfFromUrl(params.get('pdf'));
             }
@@ -288,12 +301,10 @@
         function verifyPassword() {
             const input = els.passInput.value;
             if (input === PASSWORD_BUKU) {
-                // Password Benar
                 state.isUnlocked = true;
                 document.body.classList.remove('locked');
                 els.lockOverlay.style.display = 'none';
                 
-                // Coba load PDF jika ada parameter URL setelah unlock
                 const params = new URLSearchParams(window.location.search);
                 if (params.get('pdf') && !state.pdfDoc) {
                     loadPdfFromUrl(params.get('pdf'));
@@ -404,7 +415,7 @@
         }
 
         function flip(dir) {
-            if (!state.isUnlocked) return; // Security check
+            if (!state.isUnlocked) return;
             if (dir === 'next' && state.currentSheet < state.numSheets) {
                 document.getElementById(`sheet-${state.currentSheet}`).classList.add('flipped');
                 state.currentSheet++;
