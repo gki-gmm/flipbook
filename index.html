@@ -30,6 +30,9 @@
             flex-direction: column;
             overflow: hidden;
             color: #333;
+            /* Default unlocked state */
+            filter: blur(0px); 
+            transition: filter 0.5s;
         }
 
         /* --- HEADER --- */
@@ -64,8 +67,6 @@
             position: relative;
             perspective: 2000px;
             overflow: hidden;
-            filter: blur(0px); /* Default state */
-            transition: filter 0.5s;
         }
 
         /* Loading Screen */
@@ -120,11 +121,12 @@
         .nav-btn:hover { background: #f9f9f9; color: var(--accent-color); border-color: var(--accent-color); }
         .nav-btn:disabled { opacity: 0.3; cursor: not-allowed; }
 
-        /* --- PASSWORD LOCK SCREEN (FITUR BARU) --- */
+        /* --- PASSWORD LOCK SCREEN --- */
         #lock-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(44, 62, 80, 0.98); z-index: 9999;
-            display: flex; justify-content: center; align-items: center;
+            display: none; /* Hidden by default */
+            justify-content: center; align-items: center;
             flex-direction: column;
         }
 
@@ -164,30 +166,31 @@
         .close { position: absolute; right: 20px; top: 10px; font-size: 24px; cursor: pointer; }
         textarea { width: 100%; height: 80px; margin-top: 10px; padding: 10px; }
 
-        /* Blur effect when locked */
+        /* Blur effect when locked class is added to body */
         body.locked main { filter: blur(10px); pointer-events: none; }
         body.locked footer { filter: blur(5px); pointer-events: none; }
+        body.locked header { filter: blur(2px); pointer-events: none; }
 
     </style>
 </head>
-<body class="locked">
+<body>
+    <!-- Tidak ada class="locked" di sini, akan ditambahkan otomatis via JS jika di Embed -->
 
     <!-- PASSWORD LOCK OVERLAY -->
     <div id="lock-overlay">
         <div class="lock-box">
             <span class="lock-icon">🔒</span>
-            <h2>Dokumen Terkunci</h2>
-            <p>Halaman ini dilindungi kata sandi.</p>
-            <input type="password" id="pass-input" placeholder="Masukkan Password" onkeydown="if(event.key==='Enter') verifyPassword()">
-            <button id="unlock-btn" onclick="verifyPassword()">BUKA DOKUMEN</button>
+            <h2>Konten Terkunci</h2>
+            <p>Silakan masukkan password untuk membaca dokumen ini.</p>
+            <input type="password" id="pass-input" placeholder="Password..." onkeydown="if(event.key==='Enter') verifyPassword()">
+            <button id="unlock-btn" onclick="verifyPassword()">BUKA</button>
             <div id="error-msg"></div>
         </div>
     </div>
 
     <header>
-        <div class="brand">📖 Flipbook Aman</div>
+        <div class="brand">📖 Flipbook Viewer</div>
         <div>
-            <!-- Tombol ini tetap terlihat agar admin bisa generate code, tapi konten di bawahnya kabur -->
             <button class="btn btn-embed" onclick="openEmbedModal()">📋 Get Embed</button>
             <label class="btn btn-upload">
                 📂 Upload PDF
@@ -223,7 +226,7 @@
         <div class="modal-content">
             <span class="close" onclick="document.getElementById('embedModal').style.display='none'">&times;</span>
             <h3>Embed Code</h3>
-            <p>Gunakan kode ini untuk memasang di website lain. Password akan tetap diminta.</p>
+            <p>Kode di bawah akan memunculkan <b>Password Lock</b> di website target.</p>
             <textarea id="embedCode" readonly onclick="this.select()"></textarea>
             <button class="btn btn-upload" onclick="copyEmbed()">Salin Kode</button>
         </div>
@@ -231,7 +234,7 @@
 
     <script>
         // ==========================================
-        // KONFIGURASI PASSWORD (UBAH DI SINI)
+        // KONFIGURASI PASSWORD
         // ==========================================
         const PASSWORD_BUKU = "123456"; // <--- GANTI PASSWORD ANDA DI SINI
         // ==========================================
@@ -260,6 +263,27 @@
             totPage: document.getElementById('tot-page')
         };
 
+        // --- DETECT IFRAME (LOGIKA UTAMA) ---
+        window.addEventListener('DOMContentLoaded', () => {
+            // Cek apakah halaman ini ada di dalam iframe (Embed) atau Tab Utama
+            if (window.self !== window.top) {
+                // JIKA DI EMBED (Iframe): Aktifkan Kunci
+                document.body.classList.add('locked');
+                els.lockOverlay.style.display = 'flex';
+                console.log("Mode Embed: Password Aktif");
+            } else {
+                // JIKA DI HALAMAN UTAMA (Tab Browser): Buka Kunci
+                document.body.classList.remove('locked');
+                els.lockOverlay.style.display = 'none';
+                state.isUnlocked = true; // Langsung buka
+                console.log("Mode Utama: Tidak ada Password");
+                
+                // Load PDF jika ada parameter URL untuk testing di main page
+                const params = new URLSearchParams(window.location.search);
+                if (params.get('pdf')) loadPdfFromUrl(params.get('pdf'));
+            }
+        });
+
         // --- PASSWORD LOGIC ---
         function verifyPassword() {
             const input = els.passInput.value;
@@ -269,7 +293,7 @@
                 document.body.classList.remove('locked');
                 els.lockOverlay.style.display = 'none';
                 
-                // Jika ada PDF di URL, muat sekarang
+                // Coba load PDF jika ada parameter URL setelah unlock
                 const params = new URLSearchParams(window.location.search);
                 if (params.get('pdf') && !state.pdfDoc) {
                     loadPdfFromUrl(params.get('pdf'));
@@ -282,13 +306,6 @@
                     els.errorMsg.textContent = "";
                 }, 2000);
             }
-        }
-
-        // Cek URL Params untuk bypass password (Opsional - Jika Admin mau link langsung tanpa password)
-        // Hapus baris di bawah ini jika ingin password SELALU diminta
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.get('pass') === PASSWORD_BUKU) {
-            verifyPassword(); // Auto unlock jika URL ada ?pass=123456
         }
 
         // --- PDF HANDLING ---
@@ -313,7 +330,7 @@
                 await renderPages(pdf);
             } catch (err) {
                 console.error(err);
-                alert("Gagal memuat PDF. Pastikan file ada di server dan URL benar.");
+                alert("Gagal memuat PDF. Pastikan file ada di server.");
                 els.loading.style.display = 'none';
                 els.emptyState.style.display = 'block';
             }
@@ -420,7 +437,6 @@
                 return;
             }
             const baseUrl = window.location.href.split('?')[0];
-            // Generate link dengan ?pdf=namapdf
             const embedSrc = `${baseUrl}?pdf=${state.pdfFileName}`;
             const code = `<iframe src="${embedSrc}" width="100%" height="600px" style="border:none;" allowfullscreen></iframe>`;
             document.getElementById('embedCode').value = code;
