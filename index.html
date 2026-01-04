@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PDF Flipbook Embed Generator</title>
-    <!-- Memuat PDF.js dari CDN -->
+    <title>Secure PDF Flipbook</title>
+    <!-- Memuat PDF.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -32,7 +32,7 @@
             color: #333;
         }
 
-        /* --- HEADER & CONTROLS --- */
+        /* --- HEADER --- */
         header {
             background: white;
             padding: 10px 20px;
@@ -44,217 +44,151 @@
             height: 60px;
         }
 
-        .brand {
-            font-weight: bold;
-            font-size: 1.2rem;
-            color: var(--primary-color);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .header-actions {
-            display: flex;
-            gap: 10px;
-        }
-
+        .brand { font-weight: bold; font-size: 1.2rem; color: var(--primary-color); }
         .btn {
-            padding: 6px 14px;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 0.9rem;
-            transition: background 0.2s;
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
+            padding: 6px 14px; border: none; border-radius: 6px; cursor: pointer;
+            font-size: 0.9rem; color: white; margin-left: 5px;
         }
-
-        .btn-upload { background: var(--accent-color); color: white; }
+        .btn-upload { background: var(--accent-color); }
         .btn-upload:hover { background: #2980b9; }
-        
-        .btn-embed { background: var(--primary-color); color: white; }
+        .btn-embed { background: var(--primary-color); }
         .btn-embed:hover { background: #1a252f; }
-
         input[type="file"] { display: none; }
 
-        /* --- BOOK VIEWER AREA --- */
+        /* --- MAIN CONTENT --- */
         main {
             flex: 1;
             display: flex;
             justify-content: center;
             align-items: center;
             position: relative;
-            perspective: 2000px; /* Lebih dalam untuk efek 3D */
+            perspective: 2000px;
             overflow: hidden;
+            filter: blur(0px); /* Default state */
+            transition: filter 0.5s;
         }
 
         /* Loading Screen */
         #loading {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(255,255,255,0.9);
-            display: none;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            z-index: 100;
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255,255,255,0.95);
+            display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 90;
         }
         .loader {
-            border: 5px solid #f3f3f3;
-            border-top: 5px solid var(--accent-color);
-            border-radius: 50%;
-            width: 40px; height: 40px;
-            animation: spin 1s linear infinite;
-            margin-bottom: 15px;
+            border: 5px solid #f3f3f3; border-top: 5px solid var(--accent-color);
+            border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 15px;
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
         /* Empty State */
-        .empty-msg {
-            text-align: center;
-            color: #7f8c8d;
-            max-width: 400px;
-        }
-        .empty-msg h3 { margin-bottom: 10px; color: var(--primary-color); }
+        .empty-msg { text-align: center; color: #7f8c8d; max-width: 400px; }
 
-        /* --- THE BOOK (CSS 3D) --- */
+        /* --- BOOK 3D --- */
         .book {
-            position: relative;
-            width: var(--book-width);
-            height: var(--book-height);
-            transform-style: preserve-3d;
-            transition: transform 0.5s ease;
+            position: relative; width: var(--book-width); height: var(--book-height);
+            transform-style: preserve-3d; transition: transform 0.5s ease;
         }
 
         .page {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            top: 0;
-            left: 0;
-            transform-origin: left center; /* Putar di tulang buku (kiri) */
-            transform-style: preserve-3d;
+            position: absolute; width: 100%; height: 100%; top: 0; left: 0;
+            transform-origin: left center; transform-style: preserve-3d;
             transition: transform var(--anim-speed) cubic-bezier(0.645, 0.045, 0.355, 1);
-            border-radius: 0 4px 4px 0;
-            cursor: pointer;
-            box-shadow: 0 0 5px rgba(0,0,0,0.1);
+            border-radius: 0 4px 4px 0; cursor: pointer; box-shadow: 0 0 5px rgba(0,0,0,0.1);
         }
 
-        /* Sisi Depan & Belakang */
         .front, .back {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            backface-visibility: hidden; /* Sembunyikan sisi belakang saat diputar */
-            background-color: white;
-            overflow: hidden;
+            position: absolute; width: 100%; height: 100%;
+            backface-visibility: hidden; background-color: white; overflow: hidden;
         }
-
-        .front {
-            z-index: 2;
-            /* Gradient halus di tepi kanan untuk efek lengkung */
-            background: linear-gradient(to right, rgba(0,0,0,0.05) 0%, rgba(255,255,255,0) 10%);
-        }
-
+        .front { z-index: 2; background: linear-gradient(to right, rgba(0,0,0,0.05) 0%, rgba(255,255,255,0) 10%); }
         .back {
-            transform: rotateY(180deg);
-            z-index: 1;
-            border-radius: 4px 0 0 4px; /* Radius ubah saat di belakang */
+            transform: rotateY(180deg); z-index: 1; border-radius: 4px 0 0 4px;
             background: linear-gradient(to left, rgba(0,0,0,0.05) 0%, rgba(255,255,255,0) 10%);
         }
+        .page img { width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
+        .page.flipped { transform: rotateY(-180deg); }
 
-        .page img {
-            width: 100%;
-            height: 100%;
-            object-fit: contain; /* Agar gambar PDF pas tanpa terpotong */
-            pointer-events: none;
-        }
-
-        /* Kelas saat halaman dibalik */
-        .page.flipped {
-            transform: rotateY(-180deg);
-        }
-
-        /* --- FOOTER NAVIGATION --- */
+        /* --- FOOTER --- */
         footer {
-            height: 60px;
-            background: white;
-            border-top: 1px solid #ddd;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 20px;
-            z-index: 50;
+            height: 60px; background: white; border-top: 1px solid #ddd;
+            display: flex; justify-content: center; align-items: center; gap: 20px; z-index: 50;
         }
-
         .nav-btn {
-            background: none;
-            border: 1px solid #ccc;
-            padding: 8px 16px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-weight: bold;
-            color: #555;
+            background: none; border: 1px solid #ccc; padding: 8px 16px; border-radius: 4px;
+            cursor: pointer; font-weight: bold; color: #555;
         }
         .nav-btn:hover { background: #f9f9f9; color: var(--accent-color); border-color: var(--accent-color); }
         .nav-btn:disabled { opacity: 0.3; cursor: not-allowed; }
 
-        .page-indicator {
-            font-variant-numeric: tabular-nums;
-            color: #666;
-            font-weight: 500;
+        /* --- PASSWORD LOCK SCREEN (FITUR BARU) --- */
+        #lock-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(44, 62, 80, 0.98); z-index: 9999;
+            display: flex; justify-content: center; align-items: center;
+            flex-direction: column;
         }
+
+        .lock-box {
+            background: white; padding: 40px; border-radius: 10px; text-align: center;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5); width: 300px;
+        }
+        
+        .lock-icon { font-size: 3rem; margin-bottom: 20px; display: block; }
+
+        .lock-box h2 { margin-bottom: 10px; color: #333; }
+        .lock-box p { margin-bottom: 20px; color: #666; font-size: 0.9rem; }
+        
+        #pass-input {
+            width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid #ccc;
+            border-radius: 5px; font-size: 1rem; text-align: center;
+        }
+        
+        #unlock-btn {
+            width: 100%; padding: 10px; background: var(--accent-color); color: white;
+            border: none; border-radius: 5px; font-size: 1rem; cursor: pointer;
+        }
+        #unlock-btn:hover { background: #2980b9; }
+        
+        #error-msg { color: #e74c3c; font-size: 0.8rem; margin-top: 10px; height: 1rem; }
 
         /* --- EMBED MODAL --- */
         .modal {
-            display: none; 
-            position: fixed; 
-            z-index: 200; 
-            left: 0; top: 0; 
-            width: 100%; height: 100%; 
-            background-color: rgba(0,0,0,0.5); 
-            justify-content: center; 
-            align-items: center;
+            display: none; position: fixed; z-index: 10000; left: 0; top: 0;
+            width: 100%; height: 100%; background-color: rgba(0,0,0,0.5);
+            justify-content: center; align-items: center;
         }
         .modal-content {
-            background-color: #fefefe;
-            padding: 25px;
-            border-radius: 8px;
-            width: 90%;
-            max-width: 500px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            background-color: #fefefe; padding: 25px; border-radius: 8px;
+            width: 90%; max-width: 500px; position: relative;
         }
-        .modal h2 { margin-bottom: 15px; font-size: 1.2rem; color: var(--primary-color); }
-        .modal p { margin-bottom: 10px; font-size: 0.9rem; color: #555; line-height: 1.5; }
-        textarea {
-            width: 100%;
-            height: 80px;
-            margin-bottom: 15px;
-            padding: 10px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            font-family: monospace;
-            resize: none;
-            background: #f8f9fa;
-        }
-        .close-modal {
-            float: right;
-            font-size: 24px;
-            font-weight: bold;
-            cursor: pointer;
-            color: #aaa;
-        }
-        .close-modal:hover { color: #333; }
+        .close { position: absolute; right: 20px; top: 10px; font-size: 24px; cursor: pointer; }
+        textarea { width: 100%; height: 80px; margin-top: 10px; padding: 10px; }
+
+        /* Blur effect when locked */
+        body.locked main { filter: blur(10px); pointer-events: none; }
+        body.locked footer { filter: blur(5px); pointer-events: none; }
 
     </style>
 </head>
-<body>
+<body class="locked">
+
+    <!-- PASSWORD LOCK OVERLAY -->
+    <div id="lock-overlay">
+        <div class="lock-box">
+            <span class="lock-icon">🔒</span>
+            <h2>Dokumen Terkunci</h2>
+            <p>Halaman ini dilindungi kata sandi.</p>
+            <input type="password" id="pass-input" placeholder="Masukkan Password" onkeydown="if(event.key==='Enter') verifyPassword()">
+            <button id="unlock-btn" onclick="verifyPassword()">BUKA DOKUMEN</button>
+            <div id="error-msg"></div>
+        </div>
+    </div>
 
     <header>
-        <div class="brand">📖 Flipbook Viewer</div>
-        <div class="header-actions">
-            <button class="btn btn-embed" onclick="openEmbedModal()">📋 Embed Code</button>
+        <div class="brand">📖 Flipbook Aman</div>
+        <div>
+            <!-- Tombol ini tetap terlihat agar admin bisa generate code, tapi konten di bawahnya kabur -->
+            <button class="btn btn-embed" onclick="openEmbedModal()">📋 Get Embed</button>
             <label class="btn btn-upload">
                 📂 Upload PDF
                 <input type="file" id="file-input" accept="application/pdf">
@@ -270,46 +204,51 @@
 
         <div class="empty-msg" id="empty-state">
             <h3>Belum ada PDF</h3>
-            <p>Klik tombol "Upload PDF" atau gunakan parameter URL <br><code>?pdf=namafile.pdf</code></p>
+            <p>Upload file PDF atau gunakan parameter URL.</p>
         </div>
 
         <div class="book" id="book">
-            <!-- Halaman akan di-generate di sini -->
+            <!-- Halaman generate JS -->
         </div>
     </main>
 
     <footer>
         <button class="nav-btn" id="prevBtn" disabled>❮ Sebelumnya</button>
-        <span class="page-indicator">Halaman <span id="currentDisplay">0</span> dari <span id="totalDisplay">0</span></span>
+        <span id="page-info">Halaman <span id="cur-page">0</span> / <span id="tot-page">0</span></span>
         <button class="nav-btn" id="nextBtn" disabled>Selanjutnya ❯</button>
     </footer>
 
-    <!-- Modal Embed -->
+    <!-- Embed Modal -->
     <div id="embedModal" class="modal">
         <div class="modal-content">
-            <span class="close-modal" onclick="closeEmbedModal()">&times;</span>
-            <h2>Embed Flipbook</h2>
-            <p>Gunakan kode di bawah ini untuk memasang flipbook ini di website lain.</p>
-            <p style="color: #e67e22; font-size: 0.85rem;">*Pastikan file PDF sudah di-upload ke folder yang sama dengan file HTML ini.</p>
+            <span class="close" onclick="document.getElementById('embedModal').style.display='none'">&times;</span>
+            <h3>Embed Code</h3>
+            <p>Gunakan kode ini untuk memasang di website lain. Password akan tetap diminta.</p>
             <textarea id="embedCode" readonly onclick="this.select()"></textarea>
-            <button class="btn btn-upload" onclick="copyEmbed()">Salin ke Clipboard</button>
+            <button class="btn btn-upload" onclick="copyEmbed()">Salin Kode</button>
         </div>
     </div>
 
     <script>
-        // --- State & Config ---
+        // ==========================================
+        // KONFIGURASI PASSWORD (UBAH DI SINI)
+        // ==========================================
+        const PASSWORD_BUKU = "123456"; // <--- GANTI PASSWORD ANDA DI SINI
+        // ==========================================
+
         const state = {
             pdfDoc: null,
-            pages: [], // Array of image URLs
+            pages: [],
             numSheets: 0,
-            currentSheet: 0, // 0 = Cover (Sheet 0), 1 = Sheet 1 flipped
-            bookWidth: 450,
-            bookHeight: 640,
+            currentSheet: 0,
+            isUnlocked: false,
             pdfFileName: null
         };
 
-        // --- DOM Elements ---
         const els = {
+            lockOverlay: document.getElementById('lock-overlay'),
+            passInput: document.getElementById('pass-input'),
+            errorMsg: document.getElementById('error-msg'),
             fileInput: document.getElementById('file-input'),
             book: document.getElementById('book'),
             loading: document.getElementById('loading'),
@@ -317,60 +256,64 @@
             emptyState: document.getElementById('empty-state'),
             prevBtn: document.getElementById('prevBtn'),
             nextBtn: document.getElementById('nextBtn'),
-            currentDisplay: document.getElementById('currentDisplay'),
-            totalDisplay: document.getElementById('totalDisplay'),
-            mainContainer: document.getElementById('main-container'),
-            embedModal: document.getElementById('embedModal'),
-            embedCode: document.getElementById('embedCode')
+            curPage: document.getElementById('cur-page'),
+            totPage: document.getElementById('tot-page')
         };
 
-        // --- Event Listeners ---
-        els.fileInput.addEventListener('change', handleFileSelect);
-        els.prevBtn.addEventListener('click', () => flip('prev'));
-        els.nextBtn.addEventListener('click', () => flip('next'));
-
-        // Keyboard Controls
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'ArrowLeft') flip('prev');
-            if (e.key === 'ArrowRight') flip('next');
-        });
-
-        // Initialize: Check URL Params
-        window.addEventListener('DOMContentLoaded', () => {
-            const params = new URLSearchParams(window.location.search);
-            const pdfParam = params.get('pdf');
-            if (pdfParam) {
-                loadPdfFromUrl(pdfParam);
-            }
-        });
-
-        // --- PDF Handling Functions ---
-
-        function handleFileSelect(e) {
-            const file = e.target.files[0];
-            if (file) {
-                state.pdfFileName = file.name;
-                const fileReader = new FileReader();
-                fileReader.onload = function() {
-                    const typedarray = new Uint8Array(this.result);
-                    loadPdf(typedarray);
-                };
-                fileReader.readAsArrayBuffer(file);
+        // --- PASSWORD LOGIC ---
+        function verifyPassword() {
+            const input = els.passInput.value;
+            if (input === PASSWORD_BUKU) {
+                // Password Benar
+                state.isUnlocked = true;
+                document.body.classList.remove('locked');
+                els.lockOverlay.style.display = 'none';
+                
+                // Jika ada PDF di URL, muat sekarang
+                const params = new URLSearchParams(window.location.search);
+                if (params.get('pdf') && !state.pdfDoc) {
+                    loadPdfFromUrl(params.get('pdf'));
+                }
+            } else {
+                els.errorMsg.textContent = "Password Salah!";
+                els.passInput.style.borderColor = "red";
+                setTimeout(() => {
+                    els.passInput.style.borderColor = "#ccc";
+                    els.errorMsg.textContent = "";
+                }, 2000);
             }
         }
 
+        // Cek URL Params untuk bypass password (Opsional - Jika Admin mau link langsung tanpa password)
+        // Hapus baris di bawah ini jika ingin password SELALU diminta
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('pass') === PASSWORD_BUKU) {
+            verifyPassword(); // Auto unlock jika URL ada ?pass=123456
+        }
+
+        // --- PDF HANDLING ---
+        els.fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                state.pdfFileName = file.name;
+                const reader = new FileReader();
+                reader.onload = function() {
+                    loadPdf(new Uint8Array(this.result));
+                };
+                reader.readAsArrayBuffer(file);
+            }
+        });
+
         async function loadPdfFromUrl(url) {
-            state.pdfFileName = url.split('/').pop();
             try {
                 els.loading.style.display = 'flex';
                 els.emptyState.style.display = 'none';
-                
-                const loadingTask = pdfjsLib.getDocument(url);
-                const pdf = await loadingTask.promise;
-                await renderPagesFromDoc(pdf);
+                state.pdfFileName = url.split('/').pop();
+                const pdf = await pdfjsLib.getDocument(url).promise;
+                await renderPages(pdf);
             } catch (err) {
                 console.error(err);
-                alert("Gagal memuat PDF dari URL. Pastikan link valid dan ada masalah CORS (cross-origin).");
+                alert("Gagal memuat PDF. Pastikan file ada di server dan URL benar.");
                 els.loading.style.display = 'none';
                 els.emptyState.style.display = 'block';
             }
@@ -380,87 +323,60 @@
             try {
                 els.loading.style.display = 'flex';
                 els.emptyState.style.display = 'none';
-                
-                const loadingTask = pdfjsLib.getDocument(data);
-                const pdf = await loadingTask.promise;
-                await renderPagesFromDoc(pdf);
+                const pdf = await pdfjsLib.getDocument(data).promise;
+                await renderPages(pdf);
             } catch (err) {
-                console.error(err);
-                alert("Gagal memuat file PDF.");
+                alert("Gagal memuat PDF.");
                 els.loading.style.display = 'none';
-                els.emptyState.style.display = 'block';
             }
         }
 
-        async function renderPagesFromDoc(pdf) {
+        async function renderPages(pdf) {
             state.pdfDoc = pdf;
             state.pages = [];
             state.currentSheet = 0;
             els.book.innerHTML = '';
-            
-            els.totalDisplay.textContent = pdf.numPages;
+            els.totPage.textContent = pdf.numPages;
 
-            // Render setiap halaman menjadi gambar
             for (let i = 1; i <= pdf.numPages; i++) {
-                els.loadingText.textContent = `Merender halaman ${i} dari ${pdf.numPages}...`;
-                
+                els.loadingText.textContent = `Merender halaman ${i}/${pdf.numPages}...`;
                 const page = await pdf.getPage(i);
-                // Skala 1.5 untuk kualitas bagus
                 const viewport = page.getViewport({ scale: 1.5 });
-                
                 const canvas = document.createElement('canvas');
-                const context = canvas.getContext('2d');
+                const ctx = canvas.getContext('2d');
                 canvas.height = viewport.height;
                 canvas.width = viewport.width;
-
-                await page.render({ canvasContext: context, viewport: viewport }).promise;
-                
+                await page.render({ canvasContext: ctx, viewport }).promise;
                 state.pages.push(canvas.toDataURL('image/jpeg', 0.85));
             }
 
-            createBookStructure();
+            createBook();
             els.loading.style.display = 'none';
             updateZIndex();
             updateUI();
         }
 
-        function createBookStructure() {
-            // Kita buat struktur "Sheet" (Lembar)
-            // 1 Sheet = Sisi Depan (Hal Ganjil) + Sisi Belakang (Hal Genap)
+        function createBook() {
             state.numSheets = Math.ceil(state.pages.length / 2);
-
             for (let i = 0; i < state.numSheets; i++) {
-                const pageIndexFront = i * 2;      // Index array gambar untuk depan
-                const pageIndexBack = i * 2 + 1;   // Index array gambar untuk belakang
-
                 const sheet = document.createElement('div');
                 sheet.className = 'page';
                 sheet.id = `sheet-${i}`;
-                
-                // Klik pada halaman untuk membalik
-                sheet.onclick = (e) => {
-                    // Jika klik di sebelah kiri (halaman belum dibalik), go next
-                    // Jika klik di sebelah kanan (halaman sudah dibalik), go prev
-                    // Logic sederhana: jika sheet index < currentSheet, itu di kanan (flipped)
-                    if (i < state.currentSheet) flip('prev');
-                    else flip('next');
-                };
+                sheet.onclick = () => i < state.currentSheet ? flip('prev') : flip('next');
 
-                // --- FRONT FACE ---
                 const front = document.createElement('div');
                 front.className = 'front';
-                if (pageIndexFront < state.pages.length) {
+                if (i * 2 < state.pages.length) {
                     const img = document.createElement('img');
-                    img.src = state.pages[pageIndexFront];
+                    img.src = state.pages[i * 2];
                     front.appendChild(img);
                 }
 
-                // --- BACK FACE ---
                 const back = document.createElement('div');
                 back.className = 'back';
-                if (pageIndexBack < state.pages.length) {
+                if (i * 2 + 1 < state.pages.length) {
                     const img = document.createElement('img');
-                    img.src = state.pages[pageIndexBack];
+                    img.src = state.pages[i * 2 + 1];
                     back.appendChild(img);
                 }
 
@@ -470,102 +386,63 @@
             }
         }
 
-        // --- Flip Logic (The "Kenapa begini" Fix) ---
-        function flip(direction) {
-            if (direction === 'next') {
-                if (state.currentSheet < state.numSheets) {
-                    const sheet = document.getElementById(`sheet-${state.currentSheet}`);
-                    sheet.classList.add('flipped');
-                    state.currentSheet++;
-                }
-            } else if (direction === 'prev') {
-                if (state.currentSheet > 0) {
-                    state.currentSheet--;
-                    const sheet = document.getElementById(`sheet-${state.currentSheet}`);
-                    sheet.classList.remove('flipped');
-                }
+        function flip(dir) {
+            if (!state.isUnlocked) return; // Security check
+            if (dir === 'next' && state.currentSheet < state.numSheets) {
+                document.getElementById(`sheet-${state.currentSheet}`).classList.add('flipped');
+                state.currentSheet++;
+            } else if (dir === 'prev' && state.currentSheet > 0) {
+                state.currentSheet--;
+                document.getElementById(`sheet-${state.currentSheet}`).classList.remove('flipped');
             }
             updateZIndex();
             updateUI();
         }
 
-        // Ini adalah logika paling penting untuk memperbaiki tampilan "halaman selanjutnya"
         function updateZIndex() {
-            // Reset semua Z-Index
-            // Logika:
-            // Halaman di KIRI (belum di-flip): yang paling atas harus index paling besar.
-            // Halaman di KANAN (sudah di-flip): yang paling atas harus index paling besar.
-            
             for (let i = 0; i < state.numSheets; i++) {
                 const sheet = document.getElementById(`sheet-${i}`);
-                
-                if (i < state.currentSheet) {
-                    // --- Sisi Kanan (Sudah Dibalik) ---
-                    // Semakin besar index sheet, semakin di depan (tumpukan ke kiri)
-                    sheet.style.zIndex = i + 1; 
-                } else {
-                    // --- Sisi Kiri (Belum Dibalik) ---
-                    // Semakin kecil index sheet, semakin di depan (tumpukan ke kanan)
-                    sheet.style.zIndex = state.numSheets - i;
-                }
+                sheet.style.zIndex = i < state.currentSheet ? i + 1 : state.numSheets - i;
             }
         }
 
         function updateUI() {
-            // Update nomor halaman
-            // Jika currentSheet 0 (belum buka): lihat halaman 1
-            // Jika currentSheet 1 (lembar 0 dibalik): lihat halaman 2 & 3
-            let pageNum = (state.currentSheet * 2) + 1;
-            if (pageNum > state.pages.length) pageNum = state.pages.length;
-            els.currentDisplay.textContent = pageNum;
-
-            // Update tombol
             els.prevBtn.disabled = state.currentSheet === 0;
             els.nextBtn.disabled = state.currentSheet >= state.numSheets;
+            const p = (state.currentSheet * 2) + 1;
+            els.curPage.textContent = p > state.pages.length ? state.pages.length : p;
         }
 
-        // --- Embed Feature ---
+        // --- EMBED ---
         function openEmbedModal() {
             if (!state.pdfFileName && !state.pdfDoc) {
-                alert("Upload PDF dulu sebelum membuat embed code.");
+                alert("Upload PDF dulu.");
                 return;
             }
-            
-            // Buat URL saat ini
             const baseUrl = window.location.href.split('?')[0];
-            // Gunakan nama file yang diupload, atau parameter PDF jika ada
-            let pdfParam = '';
-            if (state.pdfFileName) {
-                // Asumsikan file ada di direktori yang sama
-                pdfParam = state.pdfFileName; 
-            }
-            
-            // Construct Embed URL
-            // Jika user upload file lokal, embed ini hanya akan jalan jika file PDF diupload ke host yang sama
-            const embedSrc = `${baseUrl}?pdf=${pdfParam}`;
-            
-            const iframeCode = `<iframe src="${embedSrc}" width="100%" height="600px" style="border:none;" allowfullscreen></iframe>`;
-            
-            els.embedCode.value = iframeCode;
-            els.embedModal.style.display = 'flex';
-        }
-
-        function closeEmbedModal() {
-            els.embedModal.style.display = 'none';
+            // Generate link dengan ?pdf=namapdf
+            const embedSrc = `${baseUrl}?pdf=${state.pdfFileName}`;
+            const code = `<iframe src="${embedSrc}" width="100%" height="600px" style="border:none;" allowfullscreen></iframe>`;
+            document.getElementById('embedCode').value = code;
+            document.getElementById('embedModal').style.display = 'flex';
         }
 
         function copyEmbed() {
-            els.embedCode.select();
+            const el = document.getElementById('embedCode');
+            el.select();
             document.execCommand('copy');
-            alert('Kode berhasil disalin!');
+            alert('Kode disalin!');
         }
 
-        // Close modal when clicking outside
-        window.onclick = function(event) {
-            if (event.target == els.embedModal) {
-                closeEmbedModal();
-            }
-        }
+        // Keyboard Nav
+        document.addEventListener('keydown', (e) => {
+            if(e.key === 'ArrowLeft') flip('prev');
+            if(e.key === 'ArrowRight') flip('next');
+        });
+
+        els.prevBtn.onclick = () => flip('prev');
+        els.nextBtn.onclick = () => flip('next');
+
     </script>
 </body>
 </html>
